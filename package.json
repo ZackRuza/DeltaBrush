@@ -1,0 +1,19 @@
+{
+  "name": "deltabrush",
+  "version": "0.1.0",
+  "description": "3D modelling software with Rust core and Three.js frontend",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:wasm && npm run build:web",
+    "build:wasm": "wasm-pack build --target web --out-dir pkg",
+    "build:web": "vite build",
+    "dev": "npm run build:wasm && vite",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  }
+}

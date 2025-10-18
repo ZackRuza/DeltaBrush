@@ -1,0 +1,95 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1e1e1e;
+    color: #ffffff;
+    overflow: hidden;
+}
+
+#app {
+    display: grid;
+    grid-template-columns: 1fr 250px;
+    grid-template-rows: 60px 1fr;
+    height: 100vh;
+    width: 100vw;
+}
+
+header {
+    grid-column: 1 / -1;
+    background-color: #252526;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #3e3e42;
+}
+
+header h1 {
+    font-size: 24px;
+    color: #569cd6;
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    background-color: #0e639c;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #1177bb;
+}
+
+button:active {
+    background-color: #0d5689;
+}
+
+main {
+    background-color: #1e1e1e;
+    position: relative;
+    overflow: hidden;
+}
+
+#canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+aside {
+    background-color: #252526;
+    padding: 20px;
+    border-left: 1px solid #3e3e42;
+    overflow-y: auto;
+}
+
+aside h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #cccccc;
+}
+
+#info p {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #cccccc;
+}
+
+#info span {
+    color: #569cd6;
+    font-weight: bold;
+}
