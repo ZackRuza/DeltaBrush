@@ -121,23 +121,23 @@ impl Mesh {
 
         // Define 12 triangles (2 per face, 6 faces)
         // Front face
-        mesh.add_triangle(0, 1, 2);
-        mesh.add_triangle(0, 2, 3);
+        mesh.add_triangle(0, 2, 1);
+        mesh.add_triangle(0, 3, 2);
         // Back face
-        mesh.add_triangle(5, 4, 7);
-        mesh.add_triangle(5, 7, 6);
+        mesh.add_triangle(5, 7, 4);
+        mesh.add_triangle(5, 6, 7);
         // Top face
-        mesh.add_triangle(3, 2, 6);
-        mesh.add_triangle(3, 6, 7);
+        mesh.add_triangle(3, 6, 2);
+        mesh.add_triangle(3, 7, 6);
         // Bottom face
-        mesh.add_triangle(4, 5, 1);
-        mesh.add_triangle(4, 1, 0);
+        mesh.add_triangle(4, 1, 5);
+        mesh.add_triangle(4, 0, 1);
         // Right face
-        mesh.add_triangle(1, 5, 6);
-        mesh.add_triangle(1, 6, 2);
+        mesh.add_triangle(1, 6, 5);
+        mesh.add_triangle(1, 2, 6);
         // Left face
-        mesh.add_triangle(4, 0, 3);
-        mesh.add_triangle(4, 3, 7);
+        mesh.add_triangle(4, 3, 0);
+        mesh.add_triangle(4, 7, 3);
 
         mesh
     }
