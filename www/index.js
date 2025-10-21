@@ -11,6 +11,11 @@ class DeltaBrush {
         this.rustScene = null;
         this.threeObjects = new Map(); // Maps Rust object IDs to Three.js objects
         this.wasmInitialized = false;
+        
+        // Mouse interaction state
+        this.mouseDownPos = null;
+        this.mouseUpPos = null;
+        this.isDragging = false;
     }
 
     async init() {
@@ -88,6 +93,21 @@ class DeltaBrush {
 
         document.getElementById('clear-scene').addEventListener('click', () => {
             this.clearScene();
+        });
+
+        // Mouse click detection
+        const canvas = this.renderer.domElement;
+        
+        canvas.addEventListener('mousedown', (event) => {
+            this.onMouseDown(event);
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            this.onMouseMove(event);
+        });
+
+        canvas.addEventListener('mouseup', (event) => {
+            this.onMouseUp(event);
         });
     }
 
@@ -211,6 +231,59 @@ class DeltaBrush {
         document.getElementById('object-count').textContent = this.rustScene.object_count();
         document.getElementById('vertex-count').textContent = totalVertices;
         document.getElementById('triangle-count').textContent = totalTriangles;
+    }
+
+    onMouseDown(event) {
+        // Store the initial mouse position
+        this.mouseDownPos = {
+            x: event.clientX,
+            y: event.clientY
+        };
+        this.isDragging = false;
+    }
+
+    onMouseMove(event) {
+        // If mouse has moved significantly, consider it a drag
+        if (this.mouseDownPos) {
+            const dx = event.clientX - this.mouseDownPos.x;
+            const dy = event.clientY - this.mouseDownPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Consider it a drag if mouse moved more than 5 pixels
+            if (distance > 5) {
+                this.isDragging = true;
+            }
+        }
+    }
+
+    onMouseUp(event) {
+        // Only process as a click if we didn't drag
+        if (!this.isDragging && this.mouseDownPos) {
+            this.mouseUpPos = {
+                x: event.clientX,
+                y: event.clientY
+            };
+            
+            // Convert to normalized device coordinates
+            const canvas = this.renderer.domElement;
+            const rect = canvas.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            console.log('Click detected at screen:', event.clientX, event.clientY);
+            console.log('NDC coordinates:', x.toFixed(3), y.toFixed(3));
+            
+            this.handleClick(x, y);
+        }
+        
+        // Reset state
+        this.mouseDownPos = null;
+        this.mouseUpPos = null;
+        this.isDragging = false;
+    }
+
+    handleClick(ndcX, ndcY) {
+        // TODO: handle click here
     }
 
     onWindowResize() {
