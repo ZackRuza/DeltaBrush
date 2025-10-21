@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import init, { Mesh } from '../pkg/deltabrush.js';
+import init, { Scene as RustScene } from '../pkg/deltabrush.js';
 
 class DeltaBrush {
     constructor() {
@@ -8,7 +8,8 @@ class DeltaBrush {
         this.camera = null;
         this.renderer = null;
         this.controls = null;
-        this.meshes = [];
+        this.rustScene = null;
+        this.threeObjects = new Map(); // Maps Rust object IDs to Three.js objects
         this.wasmInitialized = false;
     }
 
@@ -17,6 +18,9 @@ class DeltaBrush {
         await init();
         this.wasmInitialized = true;
         console.log('WASM initialized');
+
+        // Create Rust scene
+        this.rustScene = new RustScene();
 
         // Setup Three.js scene
         this.setupScene();
@@ -93,61 +97,118 @@ class DeltaBrush {
             return;
         }
 
-        // Create mesh using Rust
-        const rustMesh = Mesh.create_cube(2.0);
-        const vertices = rustMesh.get_vertices_flat();
-        const indices = rustMesh.get_indices();
-
-        console.log(`Created cube with ${rustMesh.vertex_count()} vertices and ${rustMesh.triangle_count()} triangles`);
-
-        // Create Three.js geometry
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
-        geometry.computeVertexNormals();
-
-        // Create material
-        const material = new THREE.MeshStandardMaterial({
-            color: Math.random() * 0xffffff,
-            metalness: 0.3,
-            roughness: 0.4,
-        });
-
-        // Create mesh and add to scene
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
+        // Create cube in Rust scene
+        const position = [
             (Math.random() - 0.5) * 4,
             (Math.random() - 0.5) * 4,
             (Math.random() - 0.5) * 4
-        );
-        
-        this.scene.add(mesh);
-        this.meshes.push(mesh);
-
-        this.updateInfo();
+        ];
+        this.rustScene.add_cube(2.0, position);
     }
 
     clearScene() {
-        // Remove all meshes from scene
-        this.meshes.forEach(mesh => {
-            this.scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
-        });
-        this.meshes = [];
+        // Clear Rust scene
+        this.rustScene.clear();
+    }
+
+    syncScene() {
+        if (!this.rustScene.is_dirty()) {
+            return;
+        }
+
+        // Get all objects from Rust
+        const sceneData = this.rustScene.get_scene_data();
+        const currentIds = new Set();
+
+        // Update or create Three.js objects
+        for (const obj of sceneData) {
+            currentIds.add(obj.id);
+
+            if (!this.threeObjects.has(obj.id)) {
+                // Create new Three.js object
+                this.createThreeObject(obj);
+            } else {
+                // Update existing object
+                this.updateThreeObject(obj);
+            }
+        }
+
+        // Remove Three.js objects that no longer exist in Rust
+        for (const [id, threeObj] of this.threeObjects.entries()) {
+            if (!currentIds.has(id)) {
+                this.scene.remove(threeObj);
+                threeObj.geometry.dispose();
+                threeObj.material.dispose();
+                this.threeObjects.delete(id);
+            }
+        }
+
+        this.rustScene.clear_dirty();
         this.updateInfo();
+    }
+
+    createThreeObject(rustObject) {
+        const geometry = new THREE.BufferGeometry();
+        const vertices = new Float32Array(rustObject.mesh_data.vertices);
+        const indices = new Uint32Array(rustObject.mesh_data.indices);
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(
+                rustObject.material.color[0],
+                rustObject.material.color[1],
+                rustObject.material.color[2]
+            ),
+            metalness: rustObject.material.metalness,
+            roughness: rustObject.material.roughness,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        this.updateThreeObjectTransform(mesh, rustObject.transform);
+
+        this.scene.add(mesh);
+        this.threeObjects.set(rustObject.id, mesh);
+    }
+
+    updateThreeObject(rustObject) {
+        const threeObj = this.threeObjects.get(rustObject.id);
+        if (threeObj) {
+            this.updateThreeObjectTransform(threeObj, rustObject.transform);
+        }
+    }
+
+    updateThreeObjectTransform(threeObj, transform) {
+        threeObj.position.set(
+            transform.position[0],
+            transform.position[1],
+            transform.position[2]
+        );
+        threeObj.quaternion.set(
+            transform.rotation[0],
+            transform.rotation[1],
+            transform.rotation[2],
+            transform.rotation[3]
+        );
+        threeObj.scale.set(
+            transform.scale[0],
+            transform.scale[1],
+            transform.scale[2]
+        );
     }
 
     updateInfo() {
         let totalVertices = 0;
         let totalTriangles = 0;
 
-        this.meshes.forEach(mesh => {
+        this.threeObjects.forEach(mesh => {
             totalVertices += mesh.geometry.attributes.position.count;
             totalTriangles += mesh.geometry.index.count / 3;
         });
 
-        document.getElementById('object-count').textContent = this.meshes.length;
+        document.getElementById('object-count').textContent = this.rustScene.object_count();
         document.getElementById('vertex-count').textContent = totalVertices;
         document.getElementById('triangle-count').textContent = totalTriangles;
     }
@@ -161,6 +222,10 @@ class DeltaBrush {
 
     animate() {
         requestAnimationFrame(() => this.animate());
+        
+        // Sync Rust scene with Three.js scene
+        this.syncScene();
+        
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
