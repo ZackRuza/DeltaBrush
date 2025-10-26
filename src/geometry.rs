@@ -47,6 +47,29 @@ impl Vec3 {
     }
 }
 
+// Functions not visible to WASM interface
+impl Vec3 {
+    pub fn new_from_array(values: [f32; 3]) -> Vec3 {
+        Vec3 {
+            x: values[0],
+            y: values[1],
+            z: values[2],
+        }
+    }
+
+    pub fn new_from_vec(values: Vec<f32>) -> Result<Vec3, String> {
+        if values.len() != 3 {
+            Err(format!("expected 3 elements for Vec3, got {}", values.len()))
+        } else {
+            Ok(Vec3 {
+                x: values[0],
+                y: values[1],
+                z: values[2],
+            })
+        }
+    }
+}
+
 /// A 3D mesh
 #[wasm_bindgen]
 pub struct Mesh {

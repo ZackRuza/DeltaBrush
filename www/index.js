@@ -283,7 +283,28 @@ class DeltaBrush {
     }
 
     handleClick(ndcX, ndcY) {
-        // TODO: handle click here
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(ndcX, ndcY);
+        raycaster.setFromCamera(mouse, this.camera);
+
+        // Extract ray origin (camera position) and direction
+        const origin = raycaster.ray.origin;
+        const direction = raycaster.ray.direction;
+        
+        console.log('Ray origin (camera position):', origin);
+        console.log('Ray direction:', direction);
+        
+        // Send ray data to Rust for raycasting
+        const hitResult = this.rustScene.raycast_click(
+            [origin.x, origin.y, origin.z],
+            [direction.x, direction.y, direction.z]
+        );
+        
+        if (hitResult) {
+            console.log('Hit object:', hitResult);
+        } else {
+            console.log('No object hit');
+        }
     }
 
     onWindowResize() {

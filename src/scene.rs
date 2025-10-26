@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::geometry::Mesh;
-use crate::console_log;
+use crate::{console_log, Vec3};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SceneObject {
@@ -9,6 +9,14 @@ pub struct SceneObject {
     pub mesh_data: MeshData,
     pub transform: Transform,
     pub material: Material,
+}
+
+impl SceneObject {
+    //TODO: Return Option for case where vec doesn't hit
+    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<(Vec3, f32)> {
+        
+        todo!()
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -40,6 +48,8 @@ pub struct Scene {
     dirty: bool,
 }
 
+// Public functions are exposed to the front end (JS) and handle conversions,
+// private functions handle actual scene management
 #[wasm_bindgen]
 impl Scene {
     #[wasm_bindgen(constructor)]
@@ -136,5 +146,31 @@ impl Scene {
     /// Get the number of objects in the scene
     pub fn object_count(&self) -> usize {
         self.objects.len()
+    }
+
+
+    // Functions for interacting witht the scene
+    pub fn raycast_click(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
+        if let (Ok(origin_vec), Ok(direction_vec)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
+            // NEXT: process return from raycast
+            //self.raycast_first_hit(origin_vec, direction_vec);
+        } else {
+            // TODO: do stuff here
+        }
+        
+        // TODO: return proper JS value
+        JsValue::NULL
+    }
+
+    // Returns the position of the first hit
+    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<Vec3> {
+        for scene_object in &self.objects {
+            if let Some((hit, distance)) = scene_object.raycast_first_hit(origin, direction) {
+                todo!()
+            } else {
+                
+            }
+        }
+        todo!()
     }
 }
