@@ -13,10 +13,17 @@ pub struct SceneObject {
 
 impl SceneObject {
     //TODO: Return Option for case where vec doesn't hit
-    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<(Vec3, f32)> {
-        
+    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<HitResponse> {
+        // Go through each triangle and perform ray intersection
+        // TODO: implement this correctly.
         todo!()
     }
+}
+
+pub struct HitResponse {
+    pub hit_position: Vec3,
+    pub hit_distance: f32,
+    // TODO: HitResponse can hold more information, such as element reference or element ID
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -153,9 +160,15 @@ impl Scene {
     pub fn raycast_click(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
         if let (Ok(origin_vec), Ok(direction_vec)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
             // NEXT: process return from raycast
-            //self.raycast_first_hit(origin_vec, direction_vec);
+            if let Some(response) = self.raycast_first_hit(origin_vec, direction_vec) {
+                // Return the relevant hit data for JS
+                return serde_wasm_bindgen::to_value(&response.hit_position).unwrap();
+            } else {
+                // TODO: Proper handling if no response
+                // No response. Object was not hit.
+            }
         } else {
-            // TODO: do stuff here
+            // TODO: Property handling if vectors aren't 3D. Throw error.
         }
         
         // TODO: return proper JS value
@@ -163,14 +176,19 @@ impl Scene {
     }
 
     // Returns the position of the first hit
-    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<Vec3> {
+    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<HitResponse> {
+        let mut optional_hit: Option<HitResponse> = None;
         for scene_object in &self.objects {
-            if let Some((hit, distance)) = scene_object.raycast_first_hit(origin, direction) {
-                todo!()
-            } else {
-                
+            if let Some(response) = scene_object.raycast_first_hit(origin, direction) {
+                let should_replace = match &optional_hit {
+                    None => true,
+                    Some(existing) => response.hit_distance < existing.hit_distance,
+                };
+                if should_replace {
+                    optional_hit = Some(response);
+                }
             }
         }
-        todo!()
+        optional_hit
     }
 }
