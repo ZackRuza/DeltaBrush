@@ -1,7 +1,12 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::ops::{BitXor, Sub, Mul, Add};
 
-/// A 3D vector
+
+
+// TODO: move exterior algebra functions to another module
+
+// Vector
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Vec3 {
@@ -9,6 +14,204 @@ pub struct Vec3 {
     pub y: f32,
     pub z: f32,
 }
+
+// Bivector
+#[derive(Debug, Clone, Copy)]
+pub struct Bivec3 {
+    pub xy: f32,
+    pub xz: f32,
+    pub yz: f32
+}
+
+// Trivector
+#[derive(Debug, Clone, Copy)]
+pub struct Trivec3 {
+    pub xyz: f32
+}
+
+
+
+// Multiplication by scalars
+impl Mul<f32> for Vec3 {
+    type Output = Vec3;
+
+    fn mul(self, scalar: f32) -> Vec3 {
+        Vec3 {
+            x: self.x * scalar,
+            y: self.y * scalar,
+            z: self.z * scalar,
+        }
+    }
+}
+
+impl Mul<f32> for Bivec3 {
+    type Output = Bivec3;
+
+    fn mul(self, scalar: f32) -> Bivec3 {
+        Bivec3 {
+            xy: self.xy * scalar,
+            xz: self.xz * scalar,
+            yz: self.yz * scalar,
+        }
+    }
+}
+
+
+impl Mul<f32> for Trivec3 {
+    type Output = Trivec3;
+
+    fn mul(self, scalar: f32) -> Trivec3 {
+        Trivec3 {
+            xyz: self.xyz * scalar,
+        }
+    }
+}
+
+// f32 * Vec3
+impl Mul<Vec3> for f32 {
+    type Output = Vec3;
+
+    fn mul(self, vec: Vec3) -> Vec3 {
+        Vec3 {
+            x: vec.x * self,
+            y: vec.y * self,
+            z: vec.z * self,
+        }
+    }
+}
+
+// f32 * Bivec3
+impl Mul<Bivec3> for f32 {
+    type Output = Bivec3;
+
+    fn mul(self, biv: Bivec3) -> Bivec3 {
+        Bivec3 {
+            xy: biv.xy * self,
+            xz: biv.xz * self,
+            yz: biv.yz * self,
+        }
+    }
+}
+
+// f32 * Trivec3
+impl Mul<Trivec3> for f32 {
+    type Output = Trivec3;
+
+    fn mul(self, triv: Trivec3) -> Trivec3 {
+        Trivec3 {
+            xyz: triv.xyz * self,
+        }
+    }
+}
+
+impl Add<Vec3> for Vec3 {
+    type Output = Vec3;
+    
+    fn add(self, rhs: Vec3) -> Vec3 {
+        Vec3 {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+}
+
+impl Add<Bivec3> for Bivec3 {
+    type Output = Bivec3;
+    
+    fn add(self, rhs: Bivec3) -> Bivec3 {
+        Bivec3 {
+            xy: self.xy + rhs.xy,
+            xz: self.xz + rhs.xz,
+            yz: self.yz + rhs.yz,
+        }
+    }
+}
+
+impl Add<Trivec3> for Trivec3 {
+    type Output = Trivec3;
+    
+    fn add(self, rhs: Trivec3) -> Trivec3 {
+        Trivec3 {
+            xyz: self.xyz + rhs.xyz,
+        }
+    }
+}
+
+impl Sub for Vec3 {
+    type Output = Vec3;
+
+    fn sub(self, other: Vec3) -> Vec3 {
+        Vec3 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
+    }
+}
+
+impl Sub for Bivec3 {
+    type Output = Bivec3;
+
+    fn sub(self, other: Bivec3) -> Bivec3 {
+        Bivec3 {
+            xy: self.xy - other.xy,
+            xz: self.xz - other.xz,
+            yz: self.yz - other.yz,
+        }
+    }
+}
+
+impl Sub for Trivec3 {
+    type Output = Trivec3;
+
+    fn sub(self, other: Trivec3) -> Trivec3 {
+        Trivec3 {
+            xyz: self.xyz - other.xyz,
+        }
+    }
+}
+
+
+
+
+
+
+// Vec3 ^ Vec3 -> Bivec3
+impl BitXor for Vec3 {
+    type Output = Bivec3;
+
+    fn bitxor(self, other: Vec3) -> Bivec3 {
+        Bivec3 {
+            xy: self.x * other.y - self.y * other.x,
+            xz: self.x * other.z - self.z * other.x,
+            yz: self.y * other.z - self.z * other.y,
+        }
+    }
+}
+
+// Vec3 ^ Bivec3 -> Trivec3 and Bivec3 ^ Vec3 -> Trivec3
+impl BitXor<Bivec3> for Vec3 {
+    type Output = Trivec3;
+    
+    fn bitxor(self, other: Bivec3) -> Trivec3 {
+        Trivec3 {
+            xyz: self.x * other.yz - self.y * other.xz + self.z * other.xy,
+        }
+    }
+}
+
+impl BitXor<Vec3> for Bivec3 {
+    type Output = Trivec3;
+    
+    fn bitxor(self, other: Vec3) -> Trivec3 {
+        Trivec3 {
+            xyz: self.xy * other.z - self.xz * other.y + self.yz * other.x,
+        }
+    }
+}
+
+
 
 #[wasm_bindgen]
 impl Vec3 {
@@ -69,6 +272,29 @@ impl Vec3 {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /// A 3D mesh
 #[wasm_bindgen]
