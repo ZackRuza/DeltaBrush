@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::mesh::{Mesh};
+use crate::MeshData;
 use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
 
@@ -24,12 +24,6 @@ pub struct Material {
     pub roughness: f32,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct MeshData {
-    pub vertices: Vec<f32>,
-    pub indices: Vec<u32>,
-    pub normals: Option<Vec<f32>>,
-}
 
 /// Scene manager that maintains all 3D objects
 #[wasm_bindgen]
@@ -55,17 +49,12 @@ impl Scene {
 
     /// Add a cube to the scene
     pub fn add_cube(&mut self, size: f32, position: Vec<f32>) -> usize {
-        let mesh = Mesh::create_cube(size);
         let id = self.next_id;
         self.next_id += 1;
 
         let object = SceneObject {
             id,
-            mesh_data: MeshData {
-                vertices: mesh.get_vertices_flat(),
-                indices: mesh.get_indices(),
-                normals: None,
-            },
+            mesh_data: MeshData::create_cube(size),
             transform: Transform {
                 position: [position[0], position[1], position[2]],
                 rotation: [0.0, 0.0, 0.0, 1.0], // identity quaternion

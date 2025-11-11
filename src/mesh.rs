@@ -1,54 +1,53 @@
-use wasm_bindgen::prelude::*;
-use crate::algebra::Vec3;
+use serde::{Deserialize, Serialize};
 
-#[wasm_bindgen]
-pub struct Mesh {
-    vertices: Vec<Vec3>,
-    indices: Vec<u32>,
+/// Flat, render/serialize-friendly mesh representation used throughout runtime.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MeshData {
+    pub vertices: Vec<f32>,
+    pub indices: Vec<u32>,
+    pub normals: Option<Vec<f32>>, // optional, computed or supplied by caller
 }
 
-#[wasm_bindgen]
-impl Mesh {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> Mesh {
-        Mesh {
+impl MeshData {
+    pub fn new() -> Self {
+        MeshData {
             vertices: Vec::new(),
             indices: Vec::new(),
+            normals: None,
         }
     }
 
+    #[inline]
     pub fn add_vertex(&mut self, x: f32, y: f32, z: f32) {
-        self.vertices.push(Vec3::new(x, y, z));
+        self.vertices.extend_from_slice(&[x, y, z]);
     }
 
+    #[inline]
     pub fn add_triangle(&mut self, i0: u32, i1: u32, i2: u32) {
-        self.indices.push(i0);
-        self.indices.push(i1);
-        self.indices.push(i2);
+        self.indices.extend_from_slice(&[i0, i1, i2]);
     }
 
+    #[inline]
+    pub fn set_vertex(&mut self, i: usize, x: f32, y: f32, z: f32) {
+        let base = i * 3;
+        self.vertices[base] = x;
+        self.vertices[base + 1] = y;
+        self.vertices[base + 2] = z;
+    }
+
+    #[inline]
     pub fn vertex_count(&self) -> usize {
-        self.vertices.len()
+        self.vertices.len() / 3
     }
 
+    #[inline]
     pub fn triangle_count(&self) -> usize {
         self.indices.len() / 3
     }
 
-    pub fn get_vertices_flat(&self) -> Vec<f32> {
-        self.vertices
-            .iter()
-            .flat_map(|v| vec![v.x, v.y, v.z])
-            .collect()
-    }
-
-    pub fn get_indices(&self) -> Vec<u32> {
-        self.indices.clone()
-    }
-
     /// Create a cube mesh
-    pub fn create_cube(size: f32) -> Mesh {
-        let mut mesh = Mesh::new();
+    pub fn create_cube(size: f32) -> MeshData {
+        let mut mesh = MeshData::new();
         let half = size / 2.0;
 
         // Define 8 vertices of a cube
