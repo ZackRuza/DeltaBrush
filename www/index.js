@@ -16,6 +16,9 @@ class DeltaBrush {
         this.mouseDownPos = null;
         this.mouseUpPos = null;
         this.isDragging = false;
+        
+        // Hit visualization
+        this.hitMarker = null;
     }
 
     async init() {
@@ -301,9 +304,41 @@ class DeltaBrush {
         );
         
         if (hitResult) {
-            console.log('Hit object:', hitResult);
+            console.log('Hit at position:', hitResult);
+            this.showHitMarker(hitResult.x, hitResult.y, hitResult.z);
         } else {
             console.log('No object hit');
+            this.hideHitMarker();
+        }
+    }
+
+    showHitMarker(x, y, z) {
+        // Remove existing marker if present
+        if (this.hitMarker) {
+            this.scene.remove(this.hitMarker);
+            this.hitMarker.geometry.dispose();
+            this.hitMarker.material.dispose();
+        }
+
+        // Create a small sphere to mark the hit position
+        const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.8
+        });
+        this.hitMarker = new THREE.Mesh(geometry, material);
+        this.hitMarker.position.set(x, y, z);
+        
+        this.scene.add(this.hitMarker);
+    }
+
+    hideHitMarker() {
+        if (this.hitMarker) {
+            this.scene.remove(this.hitMarker);
+            this.hitMarker.geometry.dispose();
+            this.hitMarker.material.dispose();
+            this.hitMarker = null;
         }
     }
 
