@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use crate::Mesh;
+use crate::{Mesh, Transform, Material};
 use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
 
@@ -10,19 +9,7 @@ pub struct HitResponse {
     // TODO: HitResponse can hold more information, such as element reference or element ID
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Transform {
-    pub position: [f32; 3],
-    pub rotation: [f32; 4], // quaternion (x, y, z, w)
-    pub scale: [f32; 3],
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Material {
-    pub color: [f32; 3],
-    pub metalness: f32,
-    pub roughness: f32,
-}
+// Transform and Material moved to separate modules and re-exported at crate root
 
 
 /// Scene manager that maintains all 3D objects
@@ -54,7 +41,7 @@ impl Scene {
 
         let object = SceneObject {
             id,
-            mesh_data: Mesh::create_cube(size),
+            mesh: Mesh::create_cube(size),
             transform: Transform {
                 position: [position[0], position[1], position[2]],
                 rotation: [0.0, 0.0, 0.0, 1.0], // identity quaternion

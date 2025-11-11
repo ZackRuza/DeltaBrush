@@ -172,8 +172,8 @@ class DeltaBrush {
 
     createThreeObject(rustObject) {
         const geometry = new THREE.BufferGeometry();
-        const vertices = new Float32Array(rustObject.mesh_data.vertices);
-        const indices = new Uint32Array(rustObject.mesh_data.indices);
+        const vertices = new Float32Array(rustObject.mesh.vertex_coords);
+        const indices = new Uint32Array(rustObject.mesh.face_indices);
 
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         geometry.setIndex(new THREE.BufferAttribute(indices, 1));
