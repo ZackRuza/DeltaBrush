@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::MeshData;
+use crate::Mesh;
 use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
 
@@ -54,7 +54,7 @@ impl Scene {
 
         let object = SceneObject {
             id,
-            mesh_data: MeshData::create_cube(size),
+            mesh_data: Mesh::create_cube(size),
             transform: Transform {
                 position: [position[0], position[1], position[2]],
                 rotation: [0.0, 0.0, 0.0, 1.0], // identity quaternion

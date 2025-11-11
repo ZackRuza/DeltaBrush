@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Material, MeshData, Transform, Vec3, algorithms::moller_trumbore_intersection, scene::HitResponse};
+use crate::{Material, Mesh, Transform, Vec3, algorithms::moller_trumbore_intersection, scene::HitResponse};
 
 
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SceneObject {
     pub id: usize,
-    pub mesh_data: MeshData,
+    pub mesh_data: Mesh,
     pub transform: Transform,
     pub material: Material,
 }

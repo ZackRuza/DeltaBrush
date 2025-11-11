@@ -7,7 +7,7 @@ mod scene_object;
 mod algorithms;
 
 pub use algebra::Vec3;
-pub use mesh::MeshData;
+pub use mesh::Mesh;
 pub use scene::{Scene, Transform, Material};
 
 #[wasm_bindgen]

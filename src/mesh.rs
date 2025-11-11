@@ -2,15 +2,15 @@ use serde::{Deserialize, Serialize};
 
 /// Flat, render/serialize-friendly mesh representation used throughout runtime.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct MeshData {
+pub struct Mesh {
     pub vertices: Vec<f32>,
     pub indices: Vec<u32>,
     pub normals: Option<Vec<f32>>, // optional, computed or supplied by caller
 }
 
-impl MeshData {
+impl Mesh {
     pub fn new() -> Self {
-        MeshData {
+        Mesh {
             vertices: Vec::new(),
             indices: Vec::new(),
             normals: None,
@@ -46,8 +46,8 @@ impl MeshData {
     }
 
     /// Create a cube mesh
-    pub fn create_cube(size: f32) -> MeshData {
-        let mut mesh = MeshData::new();
+    pub fn create_cube(size: f32) -> Mesh {
+        let mut mesh = Mesh::new();
         let half = size / 2.0;
 
         // Define 8 vertices of a cube
