@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::geometry::{Mesh};
+use crate::mesh::{Mesh};
 use crate::{console_log, Vec3};
 use crate::algorithms::moller_trumbore_intersection;
 

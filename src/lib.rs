@@ -1,12 +1,12 @@
 use wasm_bindgen::prelude::*;
 
 mod algebra;
-mod geometry;
+mod mesh;
 mod scene;
 mod algorithms;
 
 pub use algebra::Vec3;
-pub use geometry::Mesh;
+pub use mesh::Mesh;
 pub use scene::{Scene, SceneObject, Transform, Material, MeshData};
 
 #[wasm_bindgen]
