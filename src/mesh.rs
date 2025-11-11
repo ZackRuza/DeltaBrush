@@ -3,46 +3,46 @@ use serde::{Deserialize, Serialize};
 /// Flat, render/serialize-friendly mesh representation used throughout runtime.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Mesh {
-    pub vertices: Vec<f32>,
-    pub indices: Vec<u32>,
+    pub vertex_coords: Vec<f32>,
+    pub face_indices: Vec<u32>,
     pub normals: Option<Vec<f32>>, // optional, computed or supplied by caller
 }
 
 impl Mesh {
     pub fn new() -> Self {
         Mesh {
-            vertices: Vec::new(),
-            indices: Vec::new(),
+            vertex_coords: Vec::new(),
+            face_indices: Vec::new(),
             normals: None,
         }
     }
 
     #[inline]
     pub fn add_vertex(&mut self, x: f32, y: f32, z: f32) {
-        self.vertices.extend_from_slice(&[x, y, z]);
+        self.vertex_coords.extend_from_slice(&[x, y, z]);
     }
 
     #[inline]
     pub fn add_triangle(&mut self, i0: u32, i1: u32, i2: u32) {
-        self.indices.extend_from_slice(&[i0, i1, i2]);
+        self.face_indices.extend_from_slice(&[i0, i1, i2]);
     }
 
     #[inline]
     pub fn set_vertex(&mut self, i: usize, x: f32, y: f32, z: f32) {
         let base = i * 3;
-        self.vertices[base] = x;
-        self.vertices[base + 1] = y;
-        self.vertices[base + 2] = z;
+        self.vertex_coords[base] = x;
+        self.vertex_coords[base + 1] = y;
+        self.vertex_coords[base + 2] = z;
     }
 
     #[inline]
     pub fn vertex_count(&self) -> usize {
-        self.vertices.len() / 3
+        self.vertex_coords.len() / 3
     }
 
     #[inline]
     pub fn triangle_count(&self) -> usize {
-        self.indices.len() / 3
+        self.face_indices.len() / 3
     }
 
     /// Create a cube mesh

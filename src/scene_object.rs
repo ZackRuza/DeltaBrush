@@ -14,11 +14,11 @@ pub struct SceneObject {
 
 impl SceneObject {
     pub fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<HitResponse> {
-        let verts = &self.mesh_data.vertices;
+        let verts = &self.mesh_data.vertex_coords;
         let mut closest: Option<HitResponse> = None;
 
         // Go through each triangle and perform ray intersection
-        let mut chunks = self.mesh_data.indices.chunks_exact(3);
+        let mut chunks = self.mesh_data.face_indices.chunks_exact(3);
         for tri in &mut chunks {
             let i0 = tri[0] as usize;
             let i1 = tri[1] as usize;
