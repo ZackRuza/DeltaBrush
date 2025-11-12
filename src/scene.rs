@@ -121,13 +121,13 @@ impl Scene {
     pub fn raycast_click(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
         if let (Ok(origin_vec3), Ok(direction_vec3)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
             let ray = Ray3 {
-                origin: Point3 { position: origin_vec3 },
-                direction: Direction3 { direction: direction_vec3 }
+                origin: Point3 { vec3: origin_vec3 },
+                direction: Direction3 { vec3: direction_vec3 }
             };
             
             if let Some(world_hit) = self.raycast_closest_hit(ray) {
                 // Return the relevant hit position for JS
-                return serde_wasm_bindgen::to_value(&world_hit.hit_response.hit_position.position).unwrap();
+                return serde_wasm_bindgen::to_value(&world_hit.hit_response.hit_position.vec3).unwrap();
             } else {
                 // No response. Object was not hit.
                 JsValue::NULL

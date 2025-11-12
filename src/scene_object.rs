@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Material, Mesh, Transform, Transformable, Vec3, algorithms::moller_trumbore_intersection, geometry::Ray3, scene::WorldHitResponse};
+use crate::{Material, Mesh, Point3, Transform, Transformable, Vec3, algorithms::moller_trumbore_intersection, geometry::Ray3, scene::WorldHitResponse, transform};
 
 
 
@@ -15,9 +15,9 @@ pub struct SceneObject {
 impl SceneObject {
     pub fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
         let vert_coords = &self.mesh.vertex_coords;
+        let transform = &self.transform;
+        let transformed_ray = ray.inverse_transform(transform);
         let mut closest: Option<WorldHitResponse> = None;
-
-        let transformed_ray = ray.inverse_transform(&self.transform);
 
         // Go through each triangle and perform ray intersection
         let mut chunks = self.mesh.face_indices.chunks_exact(3);
@@ -26,17 +26,22 @@ impl SceneObject {
             let i1 = tri[1] as usize;
             let i2 = tri[2] as usize;
 
-            let v = |i: usize| Vec3::new(vert_coords[3 * i], vert_coords[3 * i + 1], vert_coords[3 * i + 2]);
+            let p = |i: usize| Point3::new(vert_coords[3 * i], vert_coords[3 * i + 1], vert_coords[3 * i + 2]);
             
-            if let Some(this_hit) = moller_trumbore_intersection(transformed_ray, v(i0), v(i1), v(i2)) {
+            if let Some(this_hit)
+                = moller_trumbore_intersection(transformed_ray, p(i0), p(i1), p(i2)) {
+                
+                // The hit response was in local coordinates. Transform to world coordinates.
+                let world_hit = this_hit.transform(transform);
+
                 // TODO: Optimization to be made here. We technically calculate the hit_direction transformation twice.
                 // Ideally we partially do the full transformation. Transform the direction, check norm, then transform the rest.
-                let this_world_distance = this_hit.hit_direction.transform(&self.transform).length();
+                let this_world_distance = world_hit.hit_direction.length();
                 match &closest {
                     None => {
                         closest = Some(
                             WorldHitResponse{
-                                hit_response: this_hit.transform(&self.transform),
+                                hit_response: world_hit,
                                 distance: this_world_distance
                             });
                     },
@@ -44,7 +49,7 @@ impl SceneObject {
                         if this_world_distance < existing.distance {
                             closest = Some(
                                 WorldHitResponse {
-                                    hit_response: this_hit.transform(&self.transform),
+                                    hit_response: world_hit,
                                     distance: this_world_distance
                                 });
                         }

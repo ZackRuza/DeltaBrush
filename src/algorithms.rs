@@ -3,12 +3,13 @@ use crate::{Vec3, geometry::{Ray3, Direction3, HitResponse}};
 
 // The Möller–Trumbore intersection algorithm (using some exterior algebra)
 // Returns the hit position vector and the distance from the origin to said vector
-pub fn moller_trumbore_intersection(ray: Ray3, a: Vec3, b: Vec3, c: Vec3) -> Option<HitResponse> {
-    let origin_vec3 = ray.origin.position;
-    let direction_vec3 = ray.direction.direction;
+pub fn moller_trumbore_intersection(ray: Ray3, a: Point3, b: Point3, c: Point3) -> Option<HitResponse> {
+    let origin_vec3 = ray.origin.vec3;
+    let direction_vec3 = ray.direction.vec3;
     
-    let edge1 = b - a;
-    let edge2 = c - a;
+    
+    let edge1 = (b - a).vec3;
+    let edge2 = (c - a).vec3;
 
     let ray_edge2_plane = direction_vec3 ^ edge2;
     let volume = ray_edge2_plane ^ edge1;
@@ -17,7 +18,7 @@ pub fn moller_trumbore_intersection(ray: Ray3, a: Vec3, b: Vec3, c: Vec3) -> Opt
     }
 
     let resize = 1.0 / volume.xyz;
-    let s = origin_vec3 - a;
+    let s = origin_vec3 - a.vec3;
     let u = resize * (s ^ ray_edge2_plane).xyz;
     if u < 0.0 || u > 1.0 {
         return None;
@@ -39,10 +40,10 @@ pub fn moller_trumbore_intersection(ray: Ray3, a: Vec3, b: Vec3, c: Vec3) -> Opt
         Some(
             HitResponse {
                 hit_position: Point3 {
-                    position: intersection
+                    vec3: intersection
                 },
                 hit_direction: Direction3 {
-                    direction: scaled_direction_vec3
+                    vec3: scaled_direction_vec3
                 }})
     } else {
         // Line intersection but no ray intersection

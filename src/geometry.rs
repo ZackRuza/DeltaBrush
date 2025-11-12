@@ -4,14 +4,36 @@ use crate::{Transform, Transformable, Vec3};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Point3 {
-    pub position: Vec3,
+    pub vec3: Vec3,
 }
+
+impl Point3 {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Point3 {
+            vec3: Vec3::new(x, y, z)
+        }
+    }
+}
+
+// Subtraction two points yields direction
+impl std::ops::Sub for Point3 {
+    type Output = Direction3;
+    fn sub(self, rhs: Point3) -> Direction3 {
+        Direction3 { vec3: Vec3 { 
+            x: self.vec3.x - rhs.vec3.x,
+            y: self.vec3.y - rhs.vec3.y,
+            z: self.vec3.z - rhs.vec3.z,
+        }}
+    }
+}
+
+
 
 impl Transformable for Point3 {
     // Performs rotation, scale, then translation
     fn transform(&self, transform: &Transform) -> Self {
         // Rotate THEN scale
-        let mut transformed = self.position.transform(transform);
+        let mut transformed = self.vec3.transform(transform);
 
         // Translate
         let t = Vec3 { 
@@ -22,7 +44,7 @@ impl Transformable for Point3 {
         transformed = transformed + t;
 
         Point3 {
-            position: transformed
+            vec3: transformed
         }
     }
 
@@ -34,11 +56,11 @@ impl Transformable for Point3 {
             y: transform.position[1], 
             z: transform.position[2] 
         };
-        let transformed = self.position - t;
+        let transformed = self.vec3 - t;
 
         // Inverse scale and inverse rotation and return
         Point3 {
-            position: transformed.inverse_transform(transform)
+            vec3: transformed.inverse_transform(transform)
         }
     }
 }
@@ -46,26 +68,26 @@ impl Transformable for Point3 {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Direction3 {
-    pub direction: Vec3
+    pub vec3: Vec3
 }
 
 impl Transformable for Direction3 {
     fn transform(&self, transform: &Transform) -> Self {
         Direction3 {
-            direction: self.direction.transform(transform)
+            vec3: self.vec3.transform(transform)
         }
     }
 
     fn inverse_transform(&self, transform: &Transform) -> Self {
         Direction3 {
-            direction: self.direction.inverse_transform(transform)
+            vec3: self.vec3.inverse_transform(transform)
         }
     }
 }
 
 impl Direction3 {
     pub fn length(&self) -> f32 {
-        return self.direction.length()
+        return self.vec3.length()
     }
 }
 
