@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 use crate::{Mesh, Transform, Material};
 use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
+use crate::geometry::{Ray3, Point3, Direction3};
 
 pub struct HitResponse {
     pub hit_position: Vec3,
@@ -119,8 +120,13 @@ impl Scene {
     // Functions for interacting witht the scene
     pub fn raycast_click(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
         if let (Ok(origin_vec), Ok(direction_vec)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
+            let ray = Ray3 {
+                origin: Point3 { position: origin_vec },
+                direction: Direction3 { direction: direction_vec }
+            };
+            
             // NEXT: process return from raycast
-            if let Some(response) = self.raycast_first_hit(origin_vec, direction_vec) {
+            if let Some(response) = self.raycast_first_hit(ray) {
                 // Return the relevant hit data for JS
                 return serde_wasm_bindgen::to_value(&response.hit_position).unwrap();
             } else {
@@ -136,10 +142,10 @@ impl Scene {
     }
 
     // Returns the position of the first hit
-    fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<HitResponse> {
+    fn raycast_first_hit(&self, ray: Ray3) -> Option<HitResponse> {
         let mut optional_hit: Option<HitResponse> = None;
         for scene_object in &self.objects {
-            if let Some(response) = scene_object.raycast_first_hit(origin, direction) {
+            if let Some(response) = scene_object.raycast_first_hit(ray) {
                 let should_replace = match &optional_hit {
                     None => true,
                     Some(existing) => response.hit_distance < existing.hit_distance,

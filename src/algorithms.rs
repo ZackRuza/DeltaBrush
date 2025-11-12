@@ -1,9 +1,12 @@
-use crate::Vec3;
+use crate::{Vec3, geometry::Ray3};
 use crate::scene::HitResponse;
 
 // The Möller–Trumbore intersection algorithm (using some exterior algebra)
 // Returns the hit position vector and the distance from the origin to said vector
-pub fn moller_trumbore_intersection(origin: Vec3, direction: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<HitResponse> {
+pub fn moller_trumbore_intersection(ray: Ray3, a: Vec3, b: Vec3, c: Vec3) -> Option<HitResponse> {
+    let origin = ray.origin.position;
+    let direction = ray.direction.direction;
+    
     let edge1 = b - a;
     let edge2 = c - a;
 

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Material, Mesh, Transform, Vec3, algorithms::moller_trumbore_intersection, scene::HitResponse};
+use crate::{Material, Mesh, Transform, Vec3, algorithms::moller_trumbore_intersection, scene::HitResponse, geometry::Ray3};
 
 
 
@@ -13,7 +13,7 @@ pub struct SceneObject {
 }
 
 impl SceneObject {
-    pub fn raycast_first_hit(&self, origin: Vec3, direction: Vec3) -> Option<HitResponse> {
+    pub fn raycast_first_hit(&self, ray: Ray3) -> Option<HitResponse> {
         let verts = &self.mesh.vertex_coords;
         let mut closest: Option<HitResponse> = None;
 
@@ -26,7 +26,7 @@ impl SceneObject {
 
             let v = |i: usize| Vec3::new(verts[3 * i], verts[3 * i + 1], verts[3 * i + 2]);
             
-            if let Some(this_hit) = moller_trumbore_intersection(origin, direction, v(i0), v(i1), v(i2)) {
+            if let Some(this_hit) = moller_trumbore_intersection(ray, v(i0), v(i1), v(i2)) {
                 let should_replace = match &closest {
                     None => true,
                     Some(existing_closest) => this_hit.hit_distance < existing_closest.hit_distance,
