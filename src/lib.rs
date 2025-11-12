@@ -3,7 +3,9 @@ use wasm_bindgen::prelude::*;
 mod algebra;
 mod mesh;
 mod transform;
+mod transformable;
 mod material;
+mod geometry;
 mod scene;
 mod scene_object;
 mod algorithms;
@@ -12,7 +14,9 @@ pub use algebra::Vec3;
 pub use mesh::Mesh;
 pub use scene::Scene;
 pub use transform::Transform;
+pub use transformable::Transformable;
 pub use material::Material;
+pub use geometry::Point3;
 
 #[wasm_bindgen]
 extern "C" {

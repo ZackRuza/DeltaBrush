@@ -168,3 +168,35 @@ impl Vec3 {
         }
     }
 }
+
+// Implement Transformable for Vec3
+impl crate::Transformable for Vec3 {
+    /// Apply transform to a vector: scale THEN rotate
+    fn transform(&self, transform: &crate::Transform) -> Self {
+        // Scale
+        let scaled = Vec3 { 
+            x: self.x * transform.scale[0],
+            y: self.y * transform.scale[1],
+            z: self.z * transform.scale[2],
+        };
+
+        // Rotate adn return
+        let q = crate::Transform::normalize_quat(transform.rotation);
+        crate::Transform::rotate_vec3_by_quat(scaled, q)
+    }
+
+    /// Apply inverse transform: translate^-1 -> rotate^-1 -> scale^-1
+    fn inverse_transform(&self, transform: &crate::Transform) -> Self {
+        // Inverse rotation
+        let q = crate::Transform::normalize_quat(transform.rotation);
+        let q_conj = [-q[0], -q[1], -q[2], q[3]];
+        let unrotated = crate::Transform::rotate_vec3_by_quat(*self, q_conj);
+        
+        // Undo scale (component-wise) and return
+        // Sets to 0 if scale is 0
+        let inv_x = if transform.scale[0] != 0.0 { 1.0 / transform.scale[0] } else { 0.0 };
+        let inv_y = if transform.scale[1] != 0.0 { 1.0 / transform.scale[1] } else { 0.0 };
+        let inv_z = if transform.scale[2] != 0.0 { 1.0 / transform.scale[2] } else { 0.0 };
+        Vec3 { x: unrotated.x * inv_x, y: unrotated.y * inv_y, z: unrotated.z * inv_z }
+    }
+}
