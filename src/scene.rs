@@ -2,13 +2,7 @@ use wasm_bindgen::prelude::*;
 use crate::{Mesh, Transform, Material};
 use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
-use crate::geometry::{Ray3, Point3, Direction3};
-
-#[derive(Clone)]
-pub struct HitResponse {
-    pub hit_position: Point3,
-    pub hit_direction: Direction3,
-}
+use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
 
 // World hit reponse holds the hit response in world coordinates, as well as the
 // distance
@@ -123,36 +117,33 @@ impl Scene {
     }
 
 
-    // Functions for interacting witht the scene
+    // Functions for interacting with the scene
     pub fn raycast_click(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
-        if let (Ok(origin_vec), Ok(direction_vec)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
+        if let (Ok(origin_vec3), Ok(direction_vec3)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
             let ray = Ray3 {
-                origin: Point3 { position: origin_vec },
-                direction: Direction3 { direction: direction_vec }
+                origin: Point3 { position: origin_vec3 },
+                direction: Direction3 { direction: direction_vec3 }
             };
             
-            // NEXT: process return from raycast
-            if let Some(world_hit) = self.raycast_first_hit(ray) {
+            if let Some(world_hit) = self.raycast_closest_hit(ray) {
                 // Return the relevant hit position for JS
                 return serde_wasm_bindgen::to_value(&world_hit.hit_response.hit_position.position).unwrap();
             } else {
-                // TODO: Proper handling if no response
                 // No response. Object was not hit.
+                JsValue::NULL
             }
         } else {
             // TODO: Property handling if vectors aren't 3D. Throw error.
+            JsValue::NULL
         }
-        
-        // TODO: return proper JS value
-        JsValue::NULL
     }
 
-    // Returns the position of the first hit
-    fn raycast_first_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
+    // Returns the position of the closest hit to the ray origin
+    fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
         let mut optional_hit: Option<WorldHitResponse> = None;
 
         for scene_object in &self.objects {
-            if let Some(world_hit) = scene_object.raycast_first_hit(ray) {
+            if let Some(world_hit) = scene_object.raycast_closest_hit(ray) {
                 let should_replace = match &optional_hit {
                     None => true,
                     Some(existing) => world_hit.distance < existing.distance,

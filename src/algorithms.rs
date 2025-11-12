@@ -1,7 +1,5 @@
 use crate::Point3;
-use crate::geometry::Direction3;
-use crate::{Vec3, geometry::Ray3};
-use crate::scene::HitResponse;
+use crate::{Vec3, geometry::{Ray3, Direction3, HitResponse}};
 
 // The Möller–Trumbore intersection algorithm (using some exterior algebra)
 // Returns the hit position vector and the distance from the origin to said vector

@@ -91,3 +91,27 @@ impl Transformable for Ray3 {
         }
     }
 }
+
+
+
+#[derive(Clone)]
+pub struct HitResponse {
+    pub hit_position: Point3,
+    pub hit_direction: Direction3,
+}
+
+impl Transformable for HitResponse {
+    fn transform(&self, transform: &Transform) -> Self {
+        HitResponse {
+            hit_position: self.hit_position.transform(transform),
+            hit_direction: self.hit_direction.transform(transform)
+        }
+    }
+
+    fn inverse_transform(&self, transform: &Transform) -> Self {
+        HitResponse {
+            hit_position: self.hit_position.inverse_transform(transform),
+            hit_direction: self.hit_direction.inverse_transform(transform)
+        }
+    }
+}
