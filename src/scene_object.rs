@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Material, Mesh, Transform, Vec3, algorithms::moller_trumbore_intersection, scene::HitResponse, geometry::Ray3};
+use crate::{Material, Mesh, Transform, Transformable, Vec3, algorithms::moller_trumbore_intersection, geometry::Ray3, scene::WorldHitResponse};
 
 
 
@@ -13,9 +13,11 @@ pub struct SceneObject {
 }
 
 impl SceneObject {
-    pub fn raycast_first_hit(&self, ray: Ray3) -> Option<HitResponse> {
+    pub fn raycast_first_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
         let verts = &self.mesh.vertex_coords;
-        let mut closest: Option<HitResponse> = None;
+        let mut closest: Option<WorldHitResponse> = None;
+
+        let transformed_ray = ray.transform(&self.transform);
 
         // Go through each triangle and perform ray intersection
         let mut chunks = self.mesh.face_indices.chunks_exact(3);
@@ -26,15 +28,18 @@ impl SceneObject {
 
             let v = |i: usize| Vec3::new(verts[3 * i], verts[3 * i + 1], verts[3 * i + 2]);
             
-            if let Some(this_hit) = moller_trumbore_intersection(ray, v(i0), v(i1), v(i2)) {
-                let should_replace = match &closest {
-                    None => true,
-                    Some(existing_closest) => this_hit.hit_distance < existing_closest.hit_distance,
+            if let Some(this_hit) = moller_trumbore_intersection(transformed_ray, v(i0), v(i1), v(i2)) {
+                let this_world_distance = this_hit.hit_direction.inverse_transform(&self.transform).length();
+                match &closest {
+                    None => {
+                        closest = Some(WorldHitResponse { hit_response: this_hit, distance: this_world_distance });
+                    },
+                    Some(existing) => {
+                        if this_world_distance < existing.distance {
+                            closest = Some(WorldHitResponse { hit_response: this_hit, distance: this_world_distance });
+                        }
+                    },
                 };
-
-                if should_replace {
-                    closest = Some(this_hit);
-                }
             }
         }
 

@@ -63,6 +63,12 @@ impl Transformable for Direction3 {
     }
 }
 
+impl Direction3 {
+    pub fn length(&self) -> f32 {
+        return self.direction.length()
+    }
+}
+
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ray3 {

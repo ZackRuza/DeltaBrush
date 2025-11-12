@@ -4,13 +4,19 @@ use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
 use crate::geometry::{Ray3, Point3, Direction3};
 
+#[derive(Clone)]
 pub struct HitResponse {
-    pub hit_position: Vec3,
-    pub hit_distance: f32,
-    // TODO: HitResponse can hold more information, such as element reference or element ID
+    pub hit_position: Point3,
+    pub hit_direction: Direction3,
 }
 
-// Transform and Material moved to separate modules and re-exported at crate root
+// World hit reponse holds the hit response in world coordinates, as well as the
+// distance
+#[derive(Clone)]
+pub struct WorldHitResponse {
+    pub hit_response: HitResponse,
+    pub distance: f32,
+}
 
 
 /// Scene manager that maintains all 3D objects
@@ -126,9 +132,9 @@ impl Scene {
             };
             
             // NEXT: process return from raycast
-            if let Some(response) = self.raycast_first_hit(ray) {
-                // Return the relevant hit data for JS
-                return serde_wasm_bindgen::to_value(&response.hit_position).unwrap();
+            if let Some(world_hit) = self.raycast_first_hit(ray) {
+                // Return the relevant hit position for JS
+                return serde_wasm_bindgen::to_value(&world_hit.hit_response.hit_position.position).unwrap();
             } else {
                 // TODO: Proper handling if no response
                 // No response. Object was not hit.
@@ -142,16 +148,17 @@ impl Scene {
     }
 
     // Returns the position of the first hit
-    fn raycast_first_hit(&self, ray: Ray3) -> Option<HitResponse> {
-        let mut optional_hit: Option<HitResponse> = None;
+    fn raycast_first_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
+        let mut optional_hit: Option<WorldHitResponse> = None;
+
         for scene_object in &self.objects {
-            if let Some(response) = scene_object.raycast_first_hit(ray) {
+            if let Some(world_hit) = scene_object.raycast_first_hit(ray) {
                 let should_replace = match &optional_hit {
                     None => true,
-                    Some(existing) => response.hit_distance < existing.hit_distance,
+                    Some(existing) => world_hit.distance < existing.distance,
                 };
                 if should_replace {
-                    optional_hit = Some(response);
+                    optional_hit = Some(world_hit);
                 }
             }
         }
