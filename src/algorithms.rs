@@ -5,7 +5,7 @@ use crate::{Vec3, geometry::{Ray3, Direction3, HitResponse}};
 // Returns the hit position vector and the distance from the origin to said vector
 pub fn moller_trumbore_intersection(ray: Ray3, a: Point3, b: Point3, c: Point3) -> Option<HitResponse> {
     let origin_vec3 = ray.origin.vec3;
-    let direction_vec3 = ray.direction.vec3;
+    let direction_vec3 = ray.direction().vec3;
     
     
     let edge1 = (b - a).vec3;

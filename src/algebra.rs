@@ -143,6 +143,10 @@ impl Vec3 {
             *self
         }
     }
+    pub fn is_normalized(&self) -> bool {
+        // Check if the length is approximately 1.0 (considering floating-point precision)
+        (self.length() - 1.0).abs() < std::f32::EPSILON
+    }
     pub fn dot(&self, other: &Vec3) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }

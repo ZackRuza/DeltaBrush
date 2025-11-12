@@ -95,7 +95,28 @@ impl Direction3 {
 #[derive(Debug, Clone, Copy)]
 pub struct Ray3 {
     pub origin: Point3,
-    pub direction: Direction3,
+    // Direction must be access through a getter, where it is normalized if necessary
+    direction: Direction3,
+}
+
+impl Ray3 {
+    pub fn new(origin: Point3, direction: Direction3) -> Self {
+        Ray3 {
+            origin,
+            direction
+        }
+    }
+
+    // Getter for direction that normalizes if necessary
+    pub fn direction(&self) -> Direction3 {
+        if !self.direction.vec3.is_normalized() {
+            // Normalize the direction if it's not already normalized
+            let normalized = self.direction.vec3.normalize();
+            Direction3 { vec3: normalized }
+        } else {
+            self.direction
+        }
+    }
 }
 
 impl Transformable for Ray3 {
