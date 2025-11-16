@@ -5,30 +5,15 @@ use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
 use serde::{Serialize, Deserialize};
 
-// Information to be sent back to the front end
-#[derive(Serialize, Deserialize)]
-struct HitPosition {
-    x: f32,
-    y: f32,
-    z: f32,
-}
-
-// Information to be sent back to the front end
-#[derive(Serialize, Deserialize)]
-struct HitData {
-    position: HitPosition,
-    object_id: usize,
-}
 
 // World hit reponse holds the hit response in world coordinates, as well as the
-// distance
+// distance, and object ID
 #[derive(Clone)]
 pub struct WorldHitResponse {
     pub hit_response: HitResponse,
     pub distance: f32,
     pub object_id: usize,
 }
-
 
 /// Scene manager that maintains all 3D objects
 #[wasm_bindgen]
@@ -136,11 +121,6 @@ impl Scene {
         }
     }
 
-    /// Get all scene data as a JavaScript value
-    pub fn get_scene_data(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(&self.objects).unwrap()
-    }
-
     /// Check if the scene has been modified
     pub fn is_dirty(&self) -> bool {
         self.dirty
@@ -163,8 +143,49 @@ impl Scene {
         self.objects.len()
     }
 
+    // Returns the position of the closest hit to the ray origin
+    fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
+        let mut optional_hit: Option<WorldHitResponse> = None;
 
-    // Functions for interacting with the scene
+        for scene_object in &self.objects {
+            if let Some(world_hit) = scene_object.raycast_closest_hit(ray) {
+                let should_replace = match &optional_hit {
+                    None => true,
+                    Some(existing) => world_hit.distance < existing.distance,
+                };
+                if should_replace {
+                    optional_hit = Some(world_hit);
+                }
+            }
+        }
+        optional_hit
+    }
+}
+
+
+/* ---- Front-End Interaction ---- */
+
+// Structs for passing information to the front end
+#[derive(Serialize, Deserialize)]
+struct HitPosition {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct HitData {
+    position: HitPosition,
+    object_id: usize,
+}
+
+#[wasm_bindgen]
+impl Scene {
+    /// Get all scene data as a JavaScript value
+    pub fn get_scene_data(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.objects).unwrap()
+    }
+
     pub fn raycast_click(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
         if let (Ok(origin_vec3), Ok(direction_vec3)) = (Vec3::new_from_vec(origin), Vec3::new_from_vec(direction)) {
             let ray = Ray3::new(
@@ -192,22 +213,5 @@ impl Scene {
             JsValue::NULL
         }
     }
-
-    // Returns the position of the closest hit to the ray origin
-    fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
-        let mut optional_hit: Option<WorldHitResponse> = None;
-
-        for scene_object in &self.objects {
-            if let Some(world_hit) = scene_object.raycast_closest_hit(ray) {
-                let should_replace = match &optional_hit {
-                    None => true,
-                    Some(existing) => world_hit.distance < existing.distance,
-                };
-                if should_replace {
-                    optional_hit = Some(world_hit);
-                }
-            }
-        }
-        optional_hit
-    }
 }
+
