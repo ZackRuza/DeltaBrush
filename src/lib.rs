@@ -12,7 +12,7 @@ mod algorithms;
 
 pub use algebra::Vec3;
 pub use mesh::Mesh;
-pub use scene::Scene;
+pub use scene::SceneAPI;
 pub use transform::Transform;
 pub use transformable::Transformable;
 pub use material::Material;

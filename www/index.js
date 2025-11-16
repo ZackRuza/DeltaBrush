@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import init, { Scene as RustScene } from '../pkg/deltabrush.js';
+import init, { SceneAPI as RustScene } from '../pkg/deltabrush.js';
 
 class DeltaBrush {
     constructor() {
@@ -327,7 +327,7 @@ class DeltaBrush {
         console.log('Ray direction:', direction);
         
         // Send ray data to Rust for raycasting
-        const hitResult = this.rustScene.raycast_click(
+        const hitResult = this.rustScene.raycast_closest_hit(
             [origin.x, origin.y, origin.z],
             [direction.x, direction.y, direction.z]
         );
