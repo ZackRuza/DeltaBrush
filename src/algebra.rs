@@ -126,6 +126,38 @@ impl BitXor<Vec3> for Bivec3 {
     }
 }
 
+pub trait InnerProduct<Rhs = Self> {
+    type Output;
+    fn inner(self, rhs: Rhs) -> Self::Output;
+}
+
+impl InnerProduct<Vec3> for Vec3 {
+    type Output = f32;
+    #[inline]
+    fn inner(self, rhs: Vec3) -> f32 {
+        self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
+    }
+}
+
+pub trait Dual {
+    type Output;
+    fn dual(self) -> Self::Output;
+}
+
+impl Dual for Bivec3 {
+    type Output = Vec3;
+    #[inline]
+    fn dual(self) -> Vec3 {
+        Vec3 {
+            x: self.yz,
+            y: -self.xz,
+            z: self.xy
+        }
+    }
+}
+
+
+
 #[wasm_bindgen]
 impl Vec3 {
     #[wasm_bindgen(constructor)]

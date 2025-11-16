@@ -30,37 +30,39 @@ impl std::ops::Sub for Point3 {
 
 
 impl Transformable for Point3 {
-    // Performs rotation, scale, then translation
+    // Performs translation, rotation, then scale
     fn transform(&self, transform: &Transform) -> Self {
-        // Rotate THEN scale
-        let mut transformed = self.vec3.transform(transform);
-
         // Translate
         let t = Vec3 { 
             x: transform.position[0], 
             y: transform.position[1], 
             z: transform.position[2] 
         };
-        transformed = transformed + t;
+        let translated = self.vec3 + t;
 
+        // Rotate THEN scale
+        let fully_transformed = translated.transform(transform);
+        
         Point3 {
-            vec3: transformed
+            vec3: fully_transformed
         }
     }
 
-    // Inverts via inverse translation, inverse scale, and then inverse rotation
+    // Inverts via inverse scale and inverse rotation, then inverse translation
     fn inverse_transform(&self, transform: &Transform) -> Self {
+        let inverse_scale_rot = self.vec3.inverse_transform(transform);
+        
         // Undo the translation
         let t = Vec3 { 
             x: transform.position[0], 
             y: transform.position[1], 
             z: transform.position[2] 
         };
-        let transformed = self.vec3 - t;
+        let fully_transformed = inverse_scale_rot - t;
 
         // Inverse scale and inverse rotation and return
         Point3 {
-            vec3: transformed.inverse_transform(transform)
+            vec3: fully_transformed
         }
     }
 }
