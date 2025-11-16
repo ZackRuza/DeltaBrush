@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Material, Mesh, Point3, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::Ray3, scene::WorldHitResponse};
+use crate::{Material, Mesh, Point3, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{HitResponse, Ray3}};
 
 
 
@@ -10,6 +10,15 @@ pub struct SceneObject {
     pub mesh: Mesh,
     pub transform: Transform,
     pub material: Material,
+}
+
+/// World hit response holds the hit response in world coordinates, as well as the
+/// distance and object ID
+#[derive(Clone)]
+pub struct WorldHitResponse {
+    pub hit_response: HitResponse,
+    pub distance: f32,
+    pub object_id: usize,
 }
 
 impl SceneObject {

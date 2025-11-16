@@ -1,20 +1,9 @@
 use wasm_bindgen::prelude::*;
 use crate::{Mesh, Transform, Material};
-use crate::scene_object::SceneObject;
+use crate::scene_object::{SceneObject, WorldHitResponse};
 use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
 use serde::{Serialize, Deserialize};
-
-// =================== SHARED TYPES ===================
-
-/// World hit response holds the hit response in world coordinates, as well as the
-/// distance and object ID
-#[derive(Clone)]
-pub struct WorldHitResponse {
-    pub hit_response: HitResponse,
-    pub distance: f32,
-    pub object_id: usize,
-}
 
 // =================== CORE SCENE IMPLEMENTATION ===================
 
@@ -131,6 +120,21 @@ pub struct SceneAPI {
     core: Scene,
 }
 
+// Structs for passing information to the front end
+#[derive(Serialize, Deserialize)]
+struct HitPosition {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct HitData {
+    position: HitPosition,
+    object_id: usize,
+}
+
+
 // Public functions are exposed to the front end (JS) and handle conversions,
 // private functions handle actual scene management
 #[wasm_bindgen]
@@ -211,28 +215,6 @@ impl SceneAPI {
         self.core.clear();
     }
 
-
-}
-
-
-/* ---- Front-End Interaction ---- */
-
-// Structs for passing information to the front end
-#[derive(Serialize, Deserialize)]
-struct HitPosition {
-    x: f32,
-    y: f32,
-    z: f32,
-}
-
-#[derive(Serialize, Deserialize)]
-struct HitData {
-    position: HitPosition,
-    object_id: usize,
-}
-
-#[wasm_bindgen]
-impl SceneAPI {
     pub fn get_scene_data(&self) -> JsValue {
         serde_wasm_bindgen::to_value(self.core.objects()).unwrap()
     }
@@ -265,4 +247,3 @@ impl SceneAPI {
         }
     }
 }
-
