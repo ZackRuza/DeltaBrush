@@ -65,6 +65,36 @@ impl Scene {
         id
     }
 
+    /// Add a sphere to the scene
+    pub fn add_sphere(&mut self, radius: f32, position: Vec<f32>) -> usize {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let object = SceneObject {
+            id,
+            mesh: Mesh::create_sphere(radius, 16, 16), // 16 segments and rings for decent quality
+            transform: Transform {
+                position: [position[0], position[1], position[2]],
+                rotation: [0.0, 0.0, 0.0, 1.0], // identity quaternion
+                scale: [1.0, 1.0, 1.0],
+            },
+            material: Material {
+                color: [
+                    js_sys::Math::random() as f32,
+                    js_sys::Math::random() as f32,
+                    js_sys::Math::random() as f32,
+                ],
+                metalness: 0.3,
+                roughness: 0.4,
+            },
+        };
+
+        console_log!("Adding sphere with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
+        self.objects.push(object);
+        self.dirty = true;
+        id
+    }
+
     /// Remove an object from the scene
     pub fn remove_object(&mut self, id: usize) -> bool {
         if let Some(pos) = self.objects.iter().position(|obj| obj.id == id) {

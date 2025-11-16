@@ -81,6 +81,44 @@ impl Mesh {
         mesh.add_triangle(4, 7, 3);
 
         mesh
+    }
 
+    /// Create a sphere mesh using UV sphere generation
+    pub fn create_sphere(radius: f32, segments: u32, rings: u32) -> Mesh {
+        let mut mesh = Mesh::new();
+        
+        // Generate vertices
+        for ring in 0..=rings {
+            let phi = std::f32::consts::PI * ring as f32 / rings as f32;
+            let sin_phi = phi.sin();
+            let cos_phi = phi.cos();
+            
+            for segment in 0..=segments {
+                let theta = 2.0 * std::f32::consts::PI * segment as f32 / segments as f32;
+                let sin_theta = theta.sin();
+                let cos_theta = theta.cos();
+                
+                let x = radius * sin_phi * cos_theta;
+                let y = radius * cos_phi;
+                let z = radius * sin_phi * sin_theta;
+                
+                mesh.add_vertex(x, y, z);
+            }
+        }
+        
+        // Generate faces
+        for ring in 0..rings {
+            for segment in 0..segments {
+                let current = ring * (segments + 1) + segment;
+                let next = current + segments + 1;
+                
+                // First triangle
+                mesh.add_triangle(next, current, current + 1);
+                // Second triangle  
+                mesh.add_triangle(next, current + 1, next + 1);
+            }
+        }
+        
+        mesh
     }
 }

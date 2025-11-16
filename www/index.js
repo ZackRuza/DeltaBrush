@@ -94,6 +94,10 @@ class DeltaBrush {
             this.createCube();
         });
 
+        document.getElementById('create-sphere').addEventListener('click', () => {
+            this.createSphere();
+        });
+
         document.getElementById('clear-scene').addEventListener('click', () => {
             this.clearScene();
         });
@@ -127,6 +131,21 @@ class DeltaBrush {
             (Math.random() - 0.5) * 4
         ];
         this.rustScene.add_cube(2.0, position);
+    }
+
+    createSphere() {
+        if (!this.wasmInitialized) {
+            console.error('WASM not initialized');
+            return;
+        }
+
+        // Create sphere in Rust scene
+        const position = [
+            (Math.random() - 0.5) * 4,
+            (Math.random() - 0.5) * 4,
+            (Math.random() - 0.5) * 4
+        ];
+        this.rustScene.add_sphere(1.0, position);
     }
 
     clearScene() {
