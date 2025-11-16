@@ -3,6 +3,22 @@ use crate::{Mesh, Transform, Material};
 use crate::scene_object::SceneObject;
 use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
+use serde::{Serialize, Deserialize};
+
+// Information to be sent back to the front end
+#[derive(Serialize, Deserialize)]
+struct HitPosition {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+// Information to be sent back to the front end
+#[derive(Serialize, Deserialize)]
+struct HitData {
+    position: HitPosition,
+    object_id: usize,
+}
 
 // World hit reponse holds the hit response in world coordinates, as well as the
 // distance
@@ -10,6 +26,7 @@ use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
 pub struct WorldHitResponse {
     pub hit_response: HitResponse,
     pub distance: f32,
+    pub object_id: usize,
 }
 
 
@@ -156,8 +173,16 @@ impl Scene {
             );
             
             if let Some(world_hit) = self.raycast_closest_hit(ray) {
-                // Return the relevant hit position for JS
-                return serde_wasm_bindgen::to_value(&world_hit.hit_response.hit_position.vec3).unwrap();
+                // Return hit position and object ID for JS
+                let hit_data = HitData {
+                    position: HitPosition {
+                        x: world_hit.hit_response.hit_position.vec3.x,
+                        y: world_hit.hit_response.hit_position.vec3.y,
+                        z: world_hit.hit_response.hit_position.vec3.z,
+                    },
+                    object_id: world_hit.object_id,
+                };
+                return serde_wasm_bindgen::to_value(&hit_data).unwrap();
             } else {
                 // No response. Object was not hit.
                 JsValue::NULL

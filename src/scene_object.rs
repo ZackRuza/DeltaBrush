@@ -44,7 +44,8 @@ impl SceneObject {
                 if should_update {
                     closest = Some(WorldHitResponse {
                         hit_response: world_hit,
-                        distance: this_world_distance
+                        distance: this_world_distance,
+                        object_id: self.id,
                     });
                 }
             }

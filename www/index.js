@@ -19,6 +19,10 @@ class DeltaBrush {
         
         // Hit visualization
         this.hitMarker = null;
+        
+        // Selection system
+        this.selectedObjectId = null;
+        this.highlightMeshes = new Map(); // Maps object IDs to highlight wireframes
     }
 
     async init() {
@@ -182,6 +186,9 @@ class DeltaBrush {
                 threeObj.geometry.dispose();
                 threeObj.material.dispose();
                 this.threeObjects.delete(id);
+                
+                // Also remove highlight if it exists
+                this.removeHighlight(id);
             }
         }
 
@@ -213,6 +220,9 @@ class DeltaBrush {
 
         this.scene.add(mesh);
         this.threeObjects.set(rustObject.id, mesh);
+        
+        // Store object ID on the mesh for raycasting identification
+        mesh.userData.objectId = rustObject.id;
     }
 
     updateThreeObject(rustObject) {
@@ -322,12 +332,26 @@ class DeltaBrush {
             [direction.x, direction.y, direction.z]
         );
         
-        if (hitResult) {
-            console.log('Hit at position:', hitResult);
-            this.showHitMarker(hitResult.x, hitResult.y, hitResult.z);
+        console.log('Raw hitResult:', hitResult);
+        console.log('hitResult type:', typeof hitResult);
+        
+        if (hitResult && hitResult !== null) {
+            console.log('Hit data structure:', hitResult);
+            console.log('Position field:', hitResult.position);
+            console.log('Object ID field:', hitResult.object_id);
+            
+            if (hitResult.position) {
+                this.showHitMarker(hitResult.position.x, hitResult.position.y, hitResult.position.z);
+            }
+            
+            // Select the hit object
+            if (hitResult.object_id !== undefined) {
+                this.selectObject(hitResult.object_id);
+            }
         } else {
             console.log('No object hit');
             this.hideHitMarker();
+            this.clearSelection();
         }
     }
 
@@ -358,6 +382,61 @@ class DeltaBrush {
             this.hitMarker.geometry.dispose();
             this.hitMarker.material.dispose();
             this.hitMarker = null;
+        }
+    }
+
+    selectObject(objectId) {
+        // Clear previous selection
+        this.clearSelection();
+        
+        // Set new selection
+        this.selectedObjectId = objectId;
+        
+        // Create highlight for the selected object
+        this.createHighlight(objectId);
+    }
+
+    clearSelection() {
+        if (this.selectedObjectId !== null) {
+            this.removeHighlight(this.selectedObjectId);
+            this.selectedObjectId = null;
+        }
+    }
+
+    createHighlight(objectId) {
+        const mesh = this.threeObjects.get(objectId);
+        if (!mesh) return;
+
+        // Create wireframe geometry from the same geometry
+        const wireframeGeometry = new THREE.WireframeGeometry(mesh.geometry);
+        const wireframeMaterial = new THREE.LineBasicMaterial({
+            color: 0x00ff00,
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+        
+        // Match the transform of the original mesh
+        wireframe.position.copy(mesh.position);
+        wireframe.rotation.copy(mesh.rotation);
+        wireframe.scale.copy(mesh.scale);
+        
+        // Scale slightly larger to avoid z-fighting
+        wireframe.scale.multiplyScalar(1.002);
+
+        this.scene.add(wireframe);
+        this.highlightMeshes.set(objectId, wireframe);
+    }
+
+    removeHighlight(objectId) {
+        const highlight = this.highlightMeshes.get(objectId);
+        if (highlight) {
+            this.scene.remove(highlight);
+            highlight.geometry.dispose();
+            highlight.material.dispose();
+            this.highlightMeshes.delete(objectId);
         }
     }
 
