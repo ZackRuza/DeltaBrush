@@ -32,4 +32,12 @@ impl MeshEditor {
         // Sync render_mesh to be correct
         &self.render_mesh
     }
+
+    pub fn complete_editing(self) -> Mesh {
+        if self.dirty {
+            self.half_edge_mesh.to_mesh()
+        } else {
+            self.render_mesh
+        }
+    }
 }

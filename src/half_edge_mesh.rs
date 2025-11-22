@@ -165,6 +165,47 @@ impl HalfEdgeMesh {
         }
     }
 
+    pub fn to_mesh(&self) -> Mesh {
+
+        let vertex_coords = 
+        self.vertices.iter().flat_map(
+            |vertex| [
+                vertex.position.vec3.x,
+                vertex.position.vec3.y,
+                vertex.position.vec3.z
+            ]
+        ).collect();
+
+        let face_indices = self.faces.iter().flat_map(
+            |face| {
+                let start_half_edge_index = face.seed_half_edge;
+                let mut current_half_edge_index = start_half_edge_index;
+                let mut indices = Vec::with_capacity(3);
+
+                loop {
+                    let current_half_edge = self.half_edge(current_half_edge_index);
+                    indices.push(current_half_edge.target_vertex_index.0 as u32);
+                    current_half_edge_index = current_half_edge.next_edge;
+                    
+                    if current_half_edge_index == start_half_edge_index {
+                        break;
+                    }
+                }
+
+                indices
+            }
+        ).collect();
+
+        // TODO: potentially fill in normals from the half-edge mesh
+        let normals = None;
+        
+        Mesh {
+            vertex_coords: vertex_coords,
+            face_indices: face_indices,
+            normals: normals,
+        }
+    }
+
 
     // Helper methods for safe indexing
     pub fn vertex(&self, idx: VertexIndex) -> &Vertex {
