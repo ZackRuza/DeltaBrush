@@ -41,7 +41,7 @@ impl Mesh {
     }
 
     #[inline]
-    pub fn triangle_count(&self) -> usize {
+    pub fn face_count(&self) -> usize {
         self.face_indices.len() / 3
     }
 
