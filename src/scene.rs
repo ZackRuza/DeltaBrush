@@ -166,7 +166,6 @@ impl SceneAPI {
     }
 
     /// Add a sphere to the scene
-    /// Add a sphere to the scene
     pub fn add_sphere(&mut self, radius: f32, position: Vec<f32>) -> usize {
         let pos_array = [position[0], position[1], position[2]];
         let material = Material {
