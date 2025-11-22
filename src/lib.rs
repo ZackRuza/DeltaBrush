@@ -10,6 +10,7 @@ mod geometry;
 mod scene;
 mod scene_object;
 mod algorithms;
+mod mesh_editor;
 
 pub use algebra::Vec3;
 pub use mesh::Mesh;
@@ -19,6 +20,7 @@ pub use transform::Transform;
 pub use transformable::Transformable;
 pub use material::Material;
 pub use geometry::Point3;
+pub use mesh_editor::MeshEditor;
 
 #[wasm_bindgen]
 extern "C" {

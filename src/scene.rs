@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use crate::{Mesh, Transform, Material};
-use crate::scene_object::{SceneObject, WorldHitResponse};
+use crate::scene_object::{Model, SceneObject, WorldHitResponse};
 use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
 use serde::{Serialize, Deserialize};
@@ -29,7 +29,7 @@ impl Scene {
 
         let object = SceneObject {
             id,
-            mesh: Mesh::create_cube(size),
+            model: Model::StaticMesh(Mesh::create_cube(size)),
             transform: Transform {
                 position,
                 rotation: [0.0, 0.0, 0.0, 1.0],
@@ -49,7 +49,7 @@ impl Scene {
 
         let object = SceneObject {
             id,
-            mesh: Mesh::create_sphere(radius, 16, 16),
+            model: Model::StaticMesh(Mesh::create_sphere(radius, 16, 16)),
             transform: Transform {
                 position,
                 rotation: [0.0, 0.0, 0.0, 1.0],

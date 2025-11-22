@@ -1,8 +1,10 @@
+use crate::{FaceIndex, HalfEdgeMesh, Mesh};
 
 
 
 
 
+#[derive(Clone)]
 pub struct MeshEditor {
     half_edge_mesh: HalfEdgeMesh,
     render_mesh: Mesh,
@@ -19,11 +21,15 @@ impl MeshEditor {
     }
 
     pub fn split_face(&mut self, face: FaceIndex) {
+        todo!();
         // Split the face
         self.dirty = true;
     }
 
-    pub fn to_mesh(self) -> Mesh {
-        self.half_edge_mesh.to_mesh()
+    /// Update mesh to match current state, then pass reference
+    pub fn get_mesh(&self) -> &Mesh {
+        todo!();
+        // Sync render_mesh to be correct
+        &self.render_mesh
     }
 }
