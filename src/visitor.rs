@@ -4,7 +4,7 @@ use crate::{HalfEdgeMesh, VertexIndex};
 
 // Trait for asynchronous visits on type T
 pub trait AsyncVisitor<T> {
-    fn visit<'a>(&'a mut self, element: T) -> impl Future<Output = ()> + 'a;
+    fn visit<'a>(&'a mut self, mesh: &'a HalfEdgeMesh, element: T) -> impl Future<Output = ()> + 'a;
 }
 
 
@@ -13,9 +13,14 @@ pub trait AsyncVisitor<T> {
 struct PrintVisitor;
 
 impl AsyncVisitor<VertexIndex> for PrintVisitor {
-    fn visit<'a>(&'a mut self, vertex_idx: VertexIndex) -> impl Future<Output = ()> + 'a {
+    fn visit<'a>(&'a mut self, mesh: &'a HalfEdgeMesh, vertex_idx: VertexIndex) -> impl Future<Output = ()> + 'a {
         async move {
-            println!("Visited vertex at index {:?}", vertex_idx.0);
+            let vertex = mesh.vertex(vertex_idx);
+            println!("Visited vertex {} at position ({}, {}, {})", 
+                     vertex_idx.0,
+                     vertex.position.vec3.x,
+                     vertex.position.vec3.y,
+                     vertex.position.vec3.z);
         }
     }
 }
@@ -38,8 +43,8 @@ where
     visited.insert(start);
 
     while let Some(vertex_idx) = queue.pop_front() {
-        // Async call to visitor with vertex index
-        visitor.visit(vertex_idx).await;
+        // Async call to visitor with mesh and vertex index
+        visitor.visit(mesh, vertex_idx).await;
 
         // Find neighbors by walking around the vertex via half-edges
         if let Some(seed_he) = mesh.vertex(vertex_idx).seed_half_edge {
