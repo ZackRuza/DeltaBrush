@@ -11,6 +11,7 @@ mod scene;
 mod scene_object;
 mod algorithms;
 mod mesh_editor;
+mod visitor;
 
 pub use algebra::Vec3;
 pub use mesh::Mesh;

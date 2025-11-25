@@ -1,4 +1,4 @@
-use crate::{FaceIndex, HalfEdgeMesh, Mesh};
+use crate::{FaceIndex, HalfEdgeMesh, Mesh, Point3, Vertex, VertexIndex};
 
 
 
@@ -20,12 +20,6 @@ impl MeshEditor {
         }
     }
 
-    pub fn split_face(&mut self, face: FaceIndex) {
-        todo!();
-        // Split the face
-        self.dirty = true;
-    }
-
     /// Update mesh to match current state, then pass reference
     pub fn get_mesh(&self) -> &Mesh {
         todo!();
@@ -40,4 +34,5 @@ impl MeshEditor {
             self.render_mesh
         }
     }
+    
 }
