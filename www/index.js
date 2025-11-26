@@ -344,9 +344,20 @@ class DeltaBrush {
                 this.showHitMarker(hitResult.position.x, hitResult.position.y, hitResult.position.z);
             }
             
-            // Select the hit object
+            // Select the hit object (entering edit mode)
             if (hitResult.object_id !== undefined) {
-                this.selectObject(hitResult.object_id);
+                const objectId = hitResult.object_id;
+                
+                // Check if clicking the same object
+                if (this.selectedObjectId === objectId) {
+                    console.log(`Object ${objectId} is already selected (in edit mode)`);
+                    return;
+                }
+                
+                // Select object (this enters "edit mode" - just means it's selected)
+                this.selectObject(objectId);
+                console.log(`Object ${objectId} selected (edit mode active)`);
+                document.getElementById('edit-mode').textContent = 'On';
             }
         } else {
             console.log('No object hit');
@@ -394,12 +405,22 @@ class DeltaBrush {
         
         // Create highlight for the selected object
         this.createHighlight(objectId);
+        
+        // Update UI
+        document.getElementById('selected-object').textContent = objectId;
     }
 
     clearSelection() {
         if (this.selectedObjectId !== null) {
+            // Deselect (exit "edit mode" - just means nothing is selected)
+            console.log(`Deselecting object ${this.selectedObjectId} (exiting edit mode)`);
+            
             this.removeHighlight(this.selectedObjectId);
             this.selectedObjectId = null;
+            
+            // Update UI
+            document.getElementById('selected-object').textContent = 'None';
+            document.getElementById('edit-mode').textContent = 'Off';
         }
     }
 

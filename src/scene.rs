@@ -1,8 +1,8 @@
 use wasm_bindgen::prelude::*;
-use crate::{Mesh, Transform, Material};
-use crate::scene_object::{Model, SceneObject, WorldHitResponse};
+use crate::{Mesh, Transform, Material, MeshEditor, ModelVariant};
+use crate::scene_object::{SceneObject, WorldHitResponse};
 use crate::{console_log, Vec3};
-use crate::geometry::{Direction3, HitResponse, Point3, Ray3};
+use crate::geometry::{Direction3, Point3, Ray3};
 use serde::{Serialize, Deserialize};
 
 // =================== CORE SCENE IMPLEMENTATION ===================
@@ -27,9 +27,10 @@ impl Scene {
         let id = self.next_id;
         self.next_id += 1;
 
+        let mesh = Mesh::create_cube(size);
         let object = SceneObject {
             id,
-            model: Model::StaticMesh(Mesh::create_cube(size)),
+            model: ModelVariant::HalfEdge(MeshEditor::new(mesh)),
             transform: Transform {
                 position,
                 rotation: [0.0, 0.0, 0.0, 1.0],
@@ -47,9 +48,10 @@ impl Scene {
         let id = self.next_id;
         self.next_id += 1;
 
+        let mesh = Mesh::create_sphere(radius, 16, 16);
         let object = SceneObject {
             id,
-            model: Model::StaticMesh(Mesh::create_sphere(radius, 16, 16)),
+            model: ModelVariant::HalfEdge(MeshEditor::new(mesh)),
             transform: Transform {
                 position,
                 rotation: [0.0, 0.0, 0.0, 1.0],

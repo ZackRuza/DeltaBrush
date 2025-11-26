@@ -1,8 +1,4 @@
-use crate::{FaceIndex, HalfEdgeMesh, Mesh, Point3, Vertex, VertexIndex};
-
-
-
-
+use crate::{HalfEdgeMesh, Mesh, Model};
 
 #[derive(Clone)]
 pub struct MeshEditor {
@@ -20,12 +16,6 @@ impl MeshEditor {
         }
     }
 
-    /// Update mesh to match current state, then pass reference
-    pub fn get_mesh(&self) -> &Mesh {
-        todo!();
-        // Sync render_mesh to be correct
-        &self.render_mesh
-    }
 
     pub fn complete_editing(self) -> Mesh {
         if self.dirty {
@@ -34,5 +24,19 @@ impl MeshEditor {
             self.render_mesh
         }
     }
-    
+}
+
+// Implement the trait for MeshEditor
+impl Model for MeshEditor {
+    fn get_mesh(&self) -> &Mesh {
+        &self.render_mesh
+    }
+
+    fn sync_render_mesh(&mut self) {
+        if self.dirty {
+            // TODO: this is optimizable
+            self.render_mesh = self.half_edge_mesh.to_mesh();
+            self.dirty = false;
+        }
+    }
 }

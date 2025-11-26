@@ -1,5 +1,4 @@
 use std::{collections::VecDeque, future::Future};
-
 use crate::{HalfEdgeMesh, VertexIndex};
 
 // Trait for asynchronous visits on type T

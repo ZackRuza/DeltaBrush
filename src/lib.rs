@@ -11,17 +11,20 @@ mod scene;
 mod scene_object;
 mod algorithms;
 mod mesh_editor;
+mod model;
 mod visitor;
 
 pub use algebra::Vec3;
 pub use mesh::Mesh;
 pub use half_edge_mesh::{HalfEdgeMesh, Vertex, HalfEdge, Face, VertexIndex, HalfEdgeIndex, FaceIndex};
 pub use scene::SceneAPI;
+pub use scene_object::SceneObject;
 pub use transform::Transform;
 pub use transformable::Transformable;
 pub use material::Material;
 pub use geometry::Point3;
 pub use mesh_editor::MeshEditor;
+pub use model::{Model, ModelVariant};
 
 #[wasm_bindgen]
 extern "C" {

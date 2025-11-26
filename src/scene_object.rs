@@ -1,17 +1,11 @@
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
-use crate::{Material, Mesh, MeshEditor, Point3, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{HitResponse, Ray3}, mesh};
+use crate::{Material, Mesh, MeshEditor, Model, ModelVariant, Point3, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{HitResponse, Ray3}};
 
-
-#[derive(Clone)]
-pub enum Model {
-    StaticMesh(Mesh),
-    EditableMesh(MeshEditor),
-}
 
 #[derive(Clone)]
 pub struct SceneObject {
     pub id: usize,
-    pub model: Model,
+    pub model: ModelVariant,
     pub transform: Transform,
     pub material: Material,
 }
@@ -28,10 +22,12 @@ pub struct WorldHitResponse {
 impl SceneObject {
     /// Get the current renderable mesh
     pub fn get_mesh(&self) -> &Mesh {
-        match &self.model {
-            Model::StaticMesh(mesh) => mesh,
-            Model::EditableMesh(editor) => editor.get_mesh(),
-        }
+        self.model.get_mesh()
+    }
+
+    /// Sync the render mesh with the underlying representation
+    pub fn sync_render_mesh(&mut self) {
+        self.model.sync_render_mesh();
     }
 
     pub fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
@@ -97,7 +93,7 @@ impl Serialize for SceneObject {
     }
 }
 
-// Deserialization always creates static mesh objects
+// Deserialization always creates ModelVariant-based scene objects
 impl<'de> Deserialize<'de> for SceneObject {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -164,7 +160,7 @@ impl<'de> Deserialize<'de> for SceneObject {
 
                 Ok(SceneObject {
                     id,
-                    model: Model::StaticMesh(mesh),
+                    model: ModelVariant::HalfEdge(MeshEditor::new(mesh)),
                     transform,
                     material,
                 })
