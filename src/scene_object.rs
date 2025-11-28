@@ -8,6 +8,7 @@ pub struct SceneObject {
     pub model: ModelVariant,
     pub transform: Transform,
     pub material: Material,
+    pub selected: bool,
 }
 
 /// World hit response holds the hit response in world coordinates, as well as the
@@ -84,11 +85,12 @@ impl Serialize for SceneObject {
         S: Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("SceneObject", 4)?;
+        let mut state = serializer.serialize_struct("SceneObject", 5)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("mesh", self.get_mesh())?;
         state.serialize_field("transform", &self.transform)?;
         state.serialize_field("material", &self.material)?;
+        state.serialize_field("selected", &self.selected)?;
         state.end()
     }
 }

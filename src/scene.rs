@@ -40,6 +40,7 @@ impl Scene {
                 scale: [1.0, 1.0, 1.0],
             },
             material,
+            selected: false,
         };
 
         self.objects.push(object);
@@ -61,6 +62,31 @@ impl Scene {
                 scale: [1.0, 1.0, 1.0],
             },
             material,
+            selected: false,
+        };
+
+        self.objects.push(object);
+        self.dirty = true;
+        id
+    }
+
+    pub fn add_plane(&mut self, size: f32, position: [f32; 3], material: Material) -> usize {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let half_edge_mesh = HalfEdgeMesh::create_plane(size);
+        let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
+        
+        let object = SceneObject {
+            id,
+            model,
+            transform: Transform {
+                position,
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                scale: [1.0, 1.0, 1.0],
+            },
+            material,
+            selected: false,
         };
 
         self.objects.push(object);
@@ -114,6 +140,31 @@ impl Scene {
     pub fn clear(&mut self) {
         self.objects.clear();
         self.dirty = true;
+    }
+
+    // Selection management
+    pub fn select_object(&mut self, id: usize) -> bool {
+        if let Some(obj) = self.objects.iter_mut().find(|obj| obj.id == id) {
+            obj.selected = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn deselect_object(&mut self, id: usize) -> bool {
+        if let Some(obj) = self.objects.iter_mut().find(|obj| obj.id == id) {
+            obj.selected = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn deselect_all(&mut self) {
+        for obj in &mut self.objects {
+            obj.selected = false;
+        }
     }
 }
 
@@ -188,6 +239,24 @@ impl SceneAPI {
         id
     }
 
+    /// Add a plane to the scene
+    pub fn add_plane(&mut self, size: f32, position: Vec<f32>) -> usize {
+        let pos_array = [position[0], position[1], position[2]];
+        let material = Material {
+            color: [
+                js_sys::Math::random() as f32,
+                js_sys::Math::random() as f32,
+                js_sys::Math::random() as f32,
+            ],
+            metalness: 0.3,
+            roughness: 0.4,
+        };
+
+        let id = self.core.add_plane(size, pos_array, material);
+        console_log!("Adding plane with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
+        id
+    }
+
     pub fn remove_object(&mut self, id: usize) -> bool {
         let success = self.core.remove_object(id);
         if success {
@@ -221,6 +290,18 @@ impl SceneAPI {
 
     pub fn get_scene_data(&self) -> JsValue {
         serde_wasm_bindgen::to_value(self.core.objects()).unwrap()
+    }
+
+    pub fn select_object(&mut self, id: usize) -> bool {
+        self.core.select_object(id)
+    }
+
+    pub fn deselect_object(&mut self, id: usize) -> bool {
+        self.core.deselect_object(id)
+    }
+
+    pub fn deselect_all(&mut self) {
+        self.core.deselect_all();
     }
 
     pub fn raycast_closest_hit(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {

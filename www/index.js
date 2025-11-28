@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import init, { SceneAPI as RustScene } from '../pkg/deltabrush.js';
 
 class DeltaBrush {
@@ -11,6 +16,10 @@ class DeltaBrush {
         this.rustScene = null;
         this.threeObjects = new Map(); // Maps Rust object IDs to Three.js objects
         this.wasmInitialized = false;
+        
+        // Post-processing
+        this.composer = null;
+        this.outlinePass = null;
         
         // Mouse interaction state
         this.mouseDownPos = null;
@@ -60,10 +69,52 @@ class DeltaBrush {
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: canvas,
-            antialias: true 
+            antialias: true,
+            powerPreference: "high-performance"
         });
         this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2x for performance
+
+        // Post-processing setup with high-quality settings
+        const renderTarget = new THREE.WebGLRenderTarget(
+            canvas.clientWidth * window.devicePixelRatio,
+            canvas.clientHeight * window.devicePixelRatio,
+            {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                stencilBuffer: false,
+                samples: 8 // Enable MSAA (Multi-Sample Anti-Aliasing) for better quality
+            }
+        );
+        
+        this.composer = new EffectComposer(this.renderer, renderTarget);
+        
+        // Render pass - renders the scene normally
+        const renderPass = new RenderPass(this.scene, this.camera);
+        this.composer.addPass(renderPass);
+        
+        // Outline pass - adds outline effect to selected objects
+        const pixelRatio = this.renderer.getPixelRatio();
+        this.outlinePass = new OutlinePass(
+            new THREE.Vector2(canvas.clientWidth * pixelRatio, canvas.clientHeight * pixelRatio),
+            this.scene,
+            this.camera
+        );
+        this.outlinePass.edgeStrength = 5.0; // Increased from 3.0 for thicker outline
+        this.outlinePass.edgeGlow = 0.0; // No glow
+        this.outlinePass.edgeThickness = 2.0; // Increased from 1.0 for thicker edges
+        this.outlinePass.pulsePeriod = 0; // No pulsing animation
+        this.outlinePass.visibleEdgeColor.set('#ffffff'); // White outline
+        this.outlinePass.hiddenEdgeColor.set('#ffffff'); // White outline even when hidden
+        this.outlinePass.renderToScreen = false; // Let FXAA be the final pass
+        this.composer.addPass(this.outlinePass);
+        
+        // FXAA pass - anti-aliasing for post-processing (with higher quality settings)
+        const fxaaPass = new ShaderPass(FXAAShader);
+        fxaaPass.material.uniforms['resolution'].value.x = 1 / (canvas.clientWidth * pixelRatio);
+        fxaaPass.material.uniforms['resolution'].value.y = 1 / (canvas.clientHeight * pixelRatio);
+        this.composer.addPass(fxaaPass);
 
         // Controls
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -100,6 +151,10 @@ class DeltaBrush {
 
         document.getElementById('create-sphere').addEventListener('click', () => {
             this.createSphere();
+        });
+
+        document.getElementById('create-plane').addEventListener('click', () => {
+            this.createPlane();
         });
 
         document.getElementById('clear-scene').addEventListener('click', () => {
@@ -152,6 +207,21 @@ class DeltaBrush {
         this.rustScene.add_sphere(1.0, position);
     }
 
+    createPlane() {
+        if (!this.wasmInitialized) {
+            console.error('WASM not initialized');
+            return;
+        }
+
+        // Create plane in Rust scene
+        const position = [
+            (Math.random() - 0.5) * 4,
+            0.0, // Keep planes at y=0 for easier viewing
+            (Math.random() - 0.5) * 4
+        ];
+        this.rustScene.add_plane(3.0, position);
+    }
+
     clearScene() {
         // Clear Rust scene
         this.rustScene.clear();
@@ -183,12 +253,17 @@ class DeltaBrush {
         for (const [id, threeObj] of this.threeObjects.entries()) {
             if (!currentIds.has(id)) {
                 this.scene.remove(threeObj);
-                threeObj.geometry.dispose();
-                threeObj.material.dispose();
+                
+                // Dispose of all meshes and materials in the group
+                threeObj.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+                
                 this.threeObjects.delete(id);
                 
                 // Also remove highlight if it exists
-                this.removeHighlight(id);
+                this.removeSelectionHighlight(id);
             }
         }
 
@@ -205,24 +280,49 @@ class DeltaBrush {
         geometry.setIndex(new THREE.BufferAttribute(indices, 1));
         geometry.computeVertexNormals();
 
-        const material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(
-                rustObject.material.color[0],
-                rustObject.material.color[1],
-                rustObject.material.color[2]
-            ),
+        const baseColor = new THREE.Color(
+            rustObject.material.color[0],
+            rustObject.material.color[1],
+            rustObject.material.color[2]
+        );
+
+        // Create front-facing material (opaque)
+        const frontMaterial = new THREE.MeshStandardMaterial({
+            color: baseColor,
             metalness: rustObject.material.metalness,
             roughness: rustObject.material.roughness,
+            side: THREE.FrontSide,
         });
 
-        const mesh = new THREE.Mesh(geometry, material);
-        this.updateThreeObjectTransform(mesh, rustObject.transform);
+        // Create back-facing material (translucent)
+        const backMaterial = new THREE.MeshStandardMaterial({
+            color: baseColor,
+            metalness: rustObject.material.metalness,
+            roughness: rustObject.material.roughness,
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 0.3,
+        });
 
-        this.scene.add(mesh);
-        this.threeObjects.set(rustObject.id, mesh);
+        // Create a group to hold both meshes
+        const group = new THREE.Group();
         
-        // Store object ID on the mesh for raycasting identification
-        mesh.userData.objectId = rustObject.id;
+        const frontMesh = new THREE.Mesh(geometry, frontMaterial);
+        const backMesh = new THREE.Mesh(geometry, backMaterial);
+        
+        group.add(frontMesh);
+        group.add(backMesh);
+        
+        this.updateThreeObjectTransform(group, rustObject.transform);
+
+        this.scene.add(group);
+        this.threeObjects.set(rustObject.id, group);
+        
+        // Store object ID on the group for raycasting identification
+        group.userData.objectId = rustObject.id;
+        // Also store on children for raycasting
+        frontMesh.userData.objectId = rustObject.id;
+        backMesh.userData.objectId = rustObject.id;
     }
 
     updateThreeObject(rustObject) {
@@ -397,25 +497,35 @@ class DeltaBrush {
     }
 
     selectObject(objectId) {
-        // Clear previous selection
-        this.clearSelection();
+        // Clear previous selection's highlight if there was one
+        if (this.selectedObjectId !== null) {
+            this.removeSelectionHighlight(this.selectedObjectId);
+        }
         
-        // Set new selection
+        // Clear previous selection in Rust
+        this.rustScene.deselect_all();
+        
+        // Set new selection in Rust
+        this.rustScene.select_object(objectId);
         this.selectedObjectId = objectId;
         
-        // Create highlight for the selected object
-        this.createHighlight(objectId);
+        // Apply highlight effect to Three.js object
+        this.applySelectionHighlight(objectId);
         
         // Update UI
         document.getElementById('selected-object').textContent = objectId;
+        document.getElementById('edit-mode').textContent = 'On';
     }
 
     clearSelection() {
         if (this.selectedObjectId !== null) {
-            // Deselect (exit "edit mode" - just means nothing is selected)
-            console.log(`Deselecting object ${this.selectedObjectId} (exiting edit mode)`);
+            console.log(`Deselecting object ${this.selectedObjectId}`);
             
-            this.removeHighlight(this.selectedObjectId);
+            // Clear selection in Rust
+            this.rustScene.deselect_all();
+            
+            // Remove highlight effect
+            this.removeSelectionHighlight(this.selectedObjectId);
             this.selectedObjectId = null;
             
             // Update UI
@@ -424,48 +534,96 @@ class DeltaBrush {
         }
     }
 
-    createHighlight(objectId) {
-        const mesh = this.threeObjects.get(objectId);
-        if (!mesh) return;
+    applySelectionHighlight(objectId) {
+        const group = this.threeObjects.get(objectId);
+        if (!group) return;
 
-        // Create wireframe geometry from the same geometry
-        const wireframeGeometry = new THREE.WireframeGeometry(mesh.geometry);
-        const wireframeMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ff00,
-            linewidth: 2,
-            transparent: true,
-            opacity: 0.8
-        });
+        // The group contains two meshes: front and back
+        const frontMesh = group.children[0];
+        const backMesh = group.children[1];
 
-        const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+        // Store original material properties if not already stored
+        if (!group.userData.originalMaterial) {
+            group.userData.originalMaterial = {
+                frontColor: frontMesh.material.color.clone(),
+                frontOpacity: frontMesh.material.opacity,
+                frontTransparent: frontMesh.material.transparent,
+                backColor: backMesh.material.color.clone(),
+                backOpacity: backMesh.material.opacity,
+            };
+        }
+
+        // Make both meshes lighter and more translucent
+        frontMesh.material.color.multiplyScalar(1.3); // Lighten by 30%
+        frontMesh.material.transparent = true;
+        frontMesh.material.opacity = 0.7;
         
-        // Match the transform of the original mesh
-        wireframe.position.copy(mesh.position);
-        wireframe.rotation.copy(mesh.rotation);
-        wireframe.scale.copy(mesh.scale);
-        
-        // Scale slightly larger to avoid z-fighting
-        wireframe.scale.multiplyScalar(1.002);
+        backMesh.material.color.multiplyScalar(1.3); // Lighten by 30%
+        backMesh.material.opacity = 0.2; // Make back even more translucent when selected
 
-        this.scene.add(wireframe);
-        this.highlightMeshes.set(objectId, wireframe);
+        // Add the meshes to the outline pass for post-processing outline effect
+        // This works for all mesh types including flat planes
+        this.outlinePass.selectedObjects = [frontMesh, backMesh];
     }
 
-    removeHighlight(objectId) {
-        const highlight = this.highlightMeshes.get(objectId);
-        if (highlight) {
-            this.scene.remove(highlight);
-            highlight.geometry.dispose();
-            highlight.material.dispose();
-            this.highlightMeshes.delete(objectId);
+    removeSelectionHighlight(objectId) {
+        const group = this.threeObjects.get(objectId);
+        if (group && group.userData.originalMaterial) {
+            const frontMesh = group.children[0];
+            const backMesh = group.children[1];
+            
+            // Restore original material properties
+            frontMesh.material.color.copy(group.userData.originalMaterial.frontColor);
+            frontMesh.material.opacity = group.userData.originalMaterial.frontOpacity;
+            frontMesh.material.transparent = group.userData.originalMaterial.frontTransparent;
+            
+            backMesh.material.color.copy(group.userData.originalMaterial.backColor);
+            backMesh.material.opacity = group.userData.originalMaterial.backOpacity;
+            
+            delete group.userData.originalMaterial;
         }
+
+        // Clear the outline pass selection
+        this.outlinePass.selectedObjects = [];
     }
 
     onWindowResize() {
         const canvas = document.getElementById('canvas');
-        this.camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const pixelRatio = this.renderer.getPixelRatio();
+        
+        this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        this.renderer.setSize(width, height);
+        
+        // Update composer and render target size
+        this.composer.setSize(width, height);
+        
+        // Update the render target with high-quality settings
+        const renderTarget = new THREE.WebGLRenderTarget(
+            width * pixelRatio,
+            height * pixelRatio,
+            {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                stencilBuffer: false,
+                samples: 8 // Maintain MSAA quality
+            }
+        );
+        this.composer.renderTarget1 = renderTarget;
+        this.composer.renderTarget2 = renderTarget.clone();
+        
+        // Update outline pass resolution (use pixel ratio for higher quality)
+        this.outlinePass.resolution.set(width * pixelRatio, height * pixelRatio);
+        
+        // Update FXAA shader resolution
+        const fxaaPass = this.composer.passes[2]; // FXAA is the 3rd pass
+        if (fxaaPass && fxaaPass.material.uniforms['resolution']) {
+            fxaaPass.material.uniforms['resolution'].value.x = 1 / (width * pixelRatio);
+            fxaaPass.material.uniforms['resolution'].value.y = 1 / (height * pixelRatio);
+        }
     }
 
     animate() {
@@ -475,7 +633,7 @@ class DeltaBrush {
         this.syncScene();
         
         this.controls.update();
-        this.renderer.render(this.scene, this.camera);
+        this.composer.render(); // Use composer instead of renderer
     }
 }
 

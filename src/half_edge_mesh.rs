@@ -117,6 +117,43 @@ impl HalfEdgeMesh {
         }
     }
 
+    // Create plane
+    pub fn create_plane(size: f32) -> Self {
+        let half = size / 2.0;
+        
+        // 4 vertices forming a square on the XZ plane (y=0)
+        // Counter-clockwise from above (looking down -Y axis)
+        let vertices = vec![
+            Vertex { position: Point3::new(-half, 0.0, -half), seed_half_edge: Some(HalfEdgeIndex(0)) }, // 0: bottom-left
+            Vertex { position: Point3::new( half, 0.0, -half), seed_half_edge: Some(HalfEdgeIndex(1)) }, // 1: bottom-right
+            Vertex { position: Point3::new( half, 0.0,  half), seed_half_edge: Some(HalfEdgeIndex(2)) }, // 2: top-right
+            Vertex { position: Point3::new(-half, 0.0,  half), seed_half_edge: Some(HalfEdgeIndex(3)) }, // 3: top-left
+        ];
+        
+        // 1 quad face
+        let faces = vec![
+            Face { seed_half_edge: HalfEdgeIndex(0) },
+        ];
+        
+        // 4 half-edges forming the boundary (no twins for a single plane)
+        let half_edges = vec![
+            // Edge 0->1
+            HalfEdge { target_vertex_index: VertexIndex(1), twin_index: None, next_edge: HalfEdgeIndex(1), prev_edge: HalfEdgeIndex(3), face_index: Some(FaceIndex(0)) }, // 0
+            // Edge 1->2
+            HalfEdge { target_vertex_index: VertexIndex(2), twin_index: None, next_edge: HalfEdgeIndex(2), prev_edge: HalfEdgeIndex(0), face_index: Some(FaceIndex(0)) }, // 1
+            // Edge 2->3
+            HalfEdge { target_vertex_index: VertexIndex(3), twin_index: None, next_edge: HalfEdgeIndex(3), prev_edge: HalfEdgeIndex(1), face_index: Some(FaceIndex(0)) }, // 2
+            // Edge 3->0
+            HalfEdge { target_vertex_index: VertexIndex(0), twin_index: None, next_edge: HalfEdgeIndex(0), prev_edge: HalfEdgeIndex(2), face_index: Some(FaceIndex(0)) }, // 3
+        ];
+        
+        HalfEdgeMesh {
+            vertices,
+            half_edges,
+            faces,
+        }
+    }
+
     // Creating half edge data structure from mesh
 
     pub fn from_mesh(mesh: &Mesh) -> Self {
