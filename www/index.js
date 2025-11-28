@@ -55,7 +55,7 @@ class DeltaBrush {
         
         // Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x2a2a2a);
+        this.scene.background = new THREE.Color(0x6a6a6a);
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(
