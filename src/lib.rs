@@ -10,7 +10,7 @@ mod geometry;
 mod scene;
 mod scene_object;
 mod algorithms;
-mod mesh_editor;
+mod model_wrapper;
 mod model;
 mod visitor;
 
@@ -23,7 +23,7 @@ pub use transform::Transform;
 pub use transformable::Transformable;
 pub use material::Material;
 pub use geometry::Point3;
-pub use mesh_editor::ModelWrapper;
+pub use model_wrapper::ModelWrapper;
 pub use model::ToMesh;
 
 #[wasm_bindgen]
