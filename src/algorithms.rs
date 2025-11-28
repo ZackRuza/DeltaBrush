@@ -1,6 +1,6 @@
 use crate::Point3;
 use crate::algebra::{Dual, InnerProduct};
-use crate::{Vec3, geometry::{Ray3, Direction3, HitResponse}};
+use crate::geometry::{Ray3, Direction3, HitResponse};
 
 // The Möller–Trumbore intersection algorithm, implementation using some exterior algebra
 pub fn moller_trumbore_intersection_exterior_algebra(ray: Ray3, a: Point3, b: Point3, c: Point3) -> Option<HitResponse> {

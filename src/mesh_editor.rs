@@ -1,41 +1,29 @@
-use crate::{HalfEdgeMesh, Mesh, Model};
+use crate::{Mesh, model::ToMesh};
 
 #[derive(Clone)]
-pub struct MeshEditor {
-    half_edge_mesh: HalfEdgeMesh,
+pub struct ModelWrapper<M: ToMesh> {
+    model: M,
     render_mesh: Mesh,
     dirty: bool,
 }
 
-impl MeshEditor {
-    pub fn new(mesh: Mesh) -> Self {
-        MeshEditor {
-            half_edge_mesh: HalfEdgeMesh::from_mesh(&mesh),
-            render_mesh: mesh,
+impl<M: ToMesh> ModelWrapper<M> {
+    pub fn new(model: M) -> Self {
+        ModelWrapper {
+            render_mesh: model.to_mesh(),
+            model: model,
             dirty: false,
         }
     }
 
-
-    pub fn complete_editing(self) -> Mesh {
-        if self.dirty {
-            self.half_edge_mesh.to_mesh()
-        } else {
-            self.render_mesh
-        }
-    }
-}
-
-// Implement the trait for MeshEditor
-impl Model for MeshEditor {
-    fn get_mesh(&self) -> &Mesh {
+    pub fn get_mesh(&self) -> &Mesh {
         &self.render_mesh
     }
 
-    fn sync_render_mesh(&mut self) {
+    pub fn sync_render_mesh(&mut self) {
         if self.dirty {
             // TODO: this is optimizable
-            self.render_mesh = self.half_edge_mesh.to_mesh();
+            self.render_mesh = self.model.to_mesh();
             self.dirty = false;
         }
     }

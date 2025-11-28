@@ -23,8 +23,8 @@ pub use transform::Transform;
 pub use transformable::Transformable;
 pub use material::Material;
 pub use geometry::Point3;
-pub use mesh_editor::MeshEditor;
-pub use model::{Model, ModelVariant};
+pub use mesh_editor::ModelWrapper;
+pub use model::ToMesh;
 
 #[wasm_bindgen]
 extern "C" {

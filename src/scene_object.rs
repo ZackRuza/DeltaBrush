@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
-use crate::{Material, Mesh, MeshEditor, Model, ModelVariant, Point3, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{HitResponse, Ray3}};
+use serde::{Serialize, Serializer};
+use crate::{Material, Mesh, Point3, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{HitResponse, Ray3}, model::ModelVariant};
 
 
 #[derive(Clone)]
@@ -90,84 +90,5 @@ impl Serialize for SceneObject {
         state.serialize_field("transform", &self.transform)?;
         state.serialize_field("material", &self.material)?;
         state.end()
-    }
-}
-
-// Deserialization always creates ModelVariant-based scene objects
-impl<'de> Deserialize<'de> for SceneObject {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de::{self, MapAccess, Visitor};
-        use std::fmt;
-
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field { Id, Mesh, Transform, Material }
-
-        struct SceneObjectVisitor;
-
-        impl<'de> Visitor<'de> for SceneObjectVisitor {
-            type Value = SceneObject;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct SceneObject")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<SceneObject, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut id = None;
-                let mut mesh = None;
-                let mut transform = None;
-                let mut material = None;
-
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::Id => {
-                            if id.is_some() {
-                                return Err(de::Error::duplicate_field("id"));
-                            }
-                            id = Some(map.next_value()?);
-                        }
-                        Field::Mesh => {
-                            if mesh.is_some() {
-                                return Err(de::Error::duplicate_field("mesh"));
-                            }
-                            mesh = Some(map.next_value()?);
-                        }
-                        Field::Transform => {
-                            if transform.is_some() {
-                                return Err(de::Error::duplicate_field("transform"));
-                            }
-                            transform = Some(map.next_value()?);
-                        }
-                        Field::Material => {
-                            if material.is_some() {
-                                return Err(de::Error::duplicate_field("material"));
-                            }
-                            material = Some(map.next_value()?);
-                        }
-                    }
-                }
-
-                let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
-                let mesh = mesh.ok_or_else(|| de::Error::missing_field("mesh"))?;
-                let transform = transform.ok_or_else(|| de::Error::missing_field("transform"))?;
-                let material = material.ok_or_else(|| de::Error::missing_field("material"))?;
-
-                Ok(SceneObject {
-                    id,
-                    model: ModelVariant::HalfEdge(MeshEditor::new(mesh)),
-                    transform,
-                    material,
-                })
-            }
-        }
-
-        const FIELDS: &[&str] = &["id", "mesh", "transform", "material"];
-        deserializer.deserialize_struct("SceneObject", FIELDS, SceneObjectVisitor)
     }
 }

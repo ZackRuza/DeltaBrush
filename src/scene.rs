@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
-use crate::{Mesh, Transform, Material, MeshEditor, ModelVariant};
+use crate::model::ModelVariant;
+use crate::{HalfEdgeMesh, Material, Mesh, ModelWrapper, Transform};
 use crate::scene_object::{SceneObject, WorldHitResponse};
 use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, Point3, Ray3};
@@ -27,10 +28,12 @@ impl Scene {
         let id = self.next_id;
         self.next_id += 1;
 
-        let mesh = Mesh::create_cube(size);
+        let half_edge_mesh = HalfEdgeMesh::create_cube(size);
+        let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
+        
         let object = SceneObject {
             id,
-            model: ModelVariant::HalfEdge(MeshEditor::new(mesh)),
+            model,
             transform: Transform {
                 position,
                 rotation: [0.0, 0.0, 0.0, 1.0],
@@ -51,7 +54,7 @@ impl Scene {
         let mesh = Mesh::create_sphere(radius, 16, 16);
         let object = SceneObject {
             id,
-            model: ModelVariant::HalfEdge(MeshEditor::new(mesh)),
+            model: todo!(),
             transform: Transform {
                 position,
                 rotation: [0.0, 0.0, 0.0, 1.0],
