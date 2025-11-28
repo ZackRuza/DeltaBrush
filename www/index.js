@@ -134,14 +134,24 @@ class DeltaBrush {
     }
 
     setupLights() {
-        // Ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Ambient light - provides base illumination
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
 
-        // Directional light
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 5);
-        this.scene.add(directionalLight);
+        // Key light (main directional light)
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        keyLight.position.set(5, 10, 5);
+        this.scene.add(keyLight);
+
+        // Fill light (softer, from opposite side)
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        fillLight.position.set(-5, 5, -5);
+        this.scene.add(fillLight);
+
+        // Rim light (from behind/side for edge definition)
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        rimLight.position.set(0, 5, -10);
+        this.scene.add(rimLight);
     }
 
     setupEventListeners() {
@@ -292,6 +302,7 @@ class DeltaBrush {
             metalness: rustObject.material.metalness,
             roughness: rustObject.material.roughness,
             side: THREE.FrontSide,
+            flatShading: true, // Sharp edges for flat shading
         });
 
         // Create back-facing material (translucent)
@@ -302,6 +313,7 @@ class DeltaBrush {
             side: THREE.BackSide,
             transparent: true,
             opacity: 0.3,
+            flatShading: true, // Sharp edges for flat shading
         });
 
         // Create a group to hold both meshes
