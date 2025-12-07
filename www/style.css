@@ -34,10 +34,7 @@ header h1 {
     color: #569cd6;
 }
 
-.toolbar {
-    display: flex;
-    gap: 10px;
-}
+
 
 button {
     background-color: #0e639c;
@@ -140,14 +137,14 @@ aside h2 {
 .menu-bar {
     background-color: #252526; 
     padding: 10px 20px;
+    width: 100%;
 }
 
 .menu-bar ul {
     display: flex;    
     list-style: none;  
     gap: 20px;         
-    margin: 0;       
-    padding: 0;      
+    justify-content: flex-start;   
 }
 
 .menu-bar li {
