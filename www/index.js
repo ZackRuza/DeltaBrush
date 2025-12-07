@@ -155,19 +155,15 @@ class DeltaBrush {
     }
 
     setupEventListeners() {
-        document.getElementById('create-cube').addEventListener('click', () => {
+        document.getElementById("subbtn-1").addEventListener('click', () => {
             this.createCube();
         });
 
-        document.getElementById('create-sphere').addEventListener('click', () => {
+        document.getElementById("subbtn-2").addEventListener('click', () => {
             this.createSphere();
         });
 
-        document.getElementById('create-plane').addEventListener('click', () => {
-            this.createPlane();
-        });
-
-        document.getElementById('clear-scene').addEventListener('click', () => {
+        document.getElementById("btn-2").addEventListener('click', () => {
             this.clearScene();
         });
 
