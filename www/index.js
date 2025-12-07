@@ -171,6 +171,11 @@ class DeltaBrush {
             this.clearScene();
         });
 
+        document.getElementById("btn-1").addEventListener("click", () => {
+            const subOptions = document.getElementById("subbuttons");
+            subOptions.classList.toggle("show");
+        });
+
         // Mouse click detection
         const canvas = this.renderer.domElement;
         
@@ -185,6 +190,7 @@ class DeltaBrush {
         canvas.addEventListener('mouseup', (event) => {
             this.onMouseUp(event);
         });
+
     }
 
     createCube() {

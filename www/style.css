@@ -115,6 +115,36 @@ aside h2 {
     border: 1px solid #1177bb; 
 }
 
+.subbtns {
+    display: flex;
+    position: fixed;
+    top: 75px;
+    left: 20px;
+    flex-direction: row;
+    gap: 20px;
+    opacity: 0;              
+    transform: translateX(0); 
+    pointer-events: none;  
+    transition: transform 0.7s ease-out, opacity 0.3s ease-out;
+    max-width: 40vh;
+    overflow-x: auto;
+}
+
+.subbtns button {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    flex-shrink: 0;  
+    background-color: #1177bb20; 
+    border: 1px solid #1177bb; 
+}
+
+.subbtns.show {
+    opacity: 1;
+    transform: translateX(75px);
+    pointer-events: auto;
+}
+
 .menu-bar {
     background-color: #252526; 
     padding: 10px 20px;
