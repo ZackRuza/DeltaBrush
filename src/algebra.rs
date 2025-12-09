@@ -1,10 +1,9 @@
 use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::ops::{BitXor, Sub, Mul, Add};
 
 // Vector
 #[wasm_bindgen]
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -207,32 +206,26 @@ impl Vec3 {
 
 // Implement Transformable for Vec3
 impl crate::Transformable for Vec3 {
-    /// Apply transform to a vector: scale THEN rotate
+    /// Apply transform to a vector (no translation, just rotation and scale)
     fn transform(&self, transform: &crate::Transform) -> Self {
-        // Scale
-        let scaled = Vec3 { 
-            x: self.x * transform.scale[0],
-            y: self.y * transform.scale[1],
-            z: self.z * transform.scale[2],
-        };
-
-        // Rotate adn return
-        let q = crate::Transform::normalize_quat(transform.rotation);
-        crate::Transform::rotate_vec3_by_quat(scaled, q)
+        let glam_vec = glam::Vec3::new(self.x, self.y, self.z);
+        let transformed = transform.transform_vector(glam_vec);
+        Vec3 {
+            x: transformed.x,
+            y: transformed.y,
+            z: transformed.z,
+        }
     }
 
-    /// Apply inverse transform: translate^-1 -> rotate^-1 -> scale^-1
+    /// Apply inverse transform
     fn inverse_transform(&self, transform: &crate::Transform) -> Self {
-        // Inverse rotation
-        let q = crate::Transform::normalize_quat(transform.rotation);
-        let q_conj = [-q[0], -q[1], -q[2], q[3]];
-        let unrotated = crate::Transform::rotate_vec3_by_quat(*self, q_conj);
-        
-        // Undo scale (component-wise) and return
-        // Sets to 0 if scale is 0
-        let inv_x = if transform.scale[0] != 0.0 { 1.0 / transform.scale[0] } else { 0.0 };
-        let inv_y = if transform.scale[1] != 0.0 { 1.0 / transform.scale[1] } else { 0.0 };
-        let inv_z = if transform.scale[2] != 0.0 { 1.0 / transform.scale[2] } else { 0.0 };
-        Vec3 { x: unrotated.x * inv_x, y: unrotated.y * inv_y, z: unrotated.z * inv_z }
+        let glam_vec = glam::Vec3::new(self.x, self.y, self.z);
+        let inverse_transform = transform.inverse();
+        let transformed = inverse_transform.transform_vector(glam_vec);
+        Vec3 {
+            x: transformed.x,
+            y: transformed.y,
+            z: transformed.z,
+        }
     }
 }

@@ -30,39 +30,28 @@ impl std::ops::Sub for Point3 {
 
 
 impl Transformable for Point3 {
-    // Performs translation, rotation, then scale
     fn transform(&self, transform: &Transform) -> Self {
-        // Translate
-        let t = Vec3 { 
-            x: transform.position[0], 
-            y: transform.position[1], 
-            z: transform.position[2] 
-        };
-        let translated = self.vec3 + t;
-
-        // Rotate THEN scale
-        let fully_transformed = translated.transform(transform);
-        
+        let glam_vec = glam::Vec3::new(self.vec3.x, self.vec3.y, self.vec3.z);
+        let transformed = transform.transform_point(glam_vec);
         Point3 {
-            vec3: fully_transformed
+            vec3: Vec3 {
+                x: transformed.x,
+                y: transformed.y,
+                z: transformed.z,
+            }
         }
     }
 
-    // Inverts via inverse scale and inverse rotation, then inverse translation
     fn inverse_transform(&self, transform: &Transform) -> Self {
-        let inverse_scale_rot = self.vec3.inverse_transform(transform);
-        
-        // Undo the translation
-        let t = Vec3 { 
-            x: transform.position[0], 
-            y: transform.position[1], 
-            z: transform.position[2] 
-        };
-        let fully_transformed = inverse_scale_rot - t;
-
-        // Inverse scale and inverse rotation and return
+        let glam_vec = glam::Vec3::new(self.vec3.x, self.vec3.y, self.vec3.z);
+        let inverse_transform = transform.inverse();
+        let transformed = inverse_transform.transform_point(glam_vec);
         Point3 {
-            vec3: fully_transformed
+            vec3: Vec3 {
+                x: transformed.x,
+                y: transformed.y,
+                z: transformed.z,
+            }
         }
     }
 }
@@ -159,4 +148,14 @@ impl Transformable for HitResponse {
             hit_direction: self.hit_direction.inverse_transform(transform)
         }
     }
+}
+
+
+/// World hit response holds the hit response in world coordinates, as well as the
+/// distance and object ID
+#[derive(Clone)]
+pub struct WorldHitResponse {
+    pub hit_response: HitResponse,
+    pub distance: f32,
+    pub object_id: usize,
 }

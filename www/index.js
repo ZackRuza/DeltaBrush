@@ -16,6 +16,7 @@ class DeltaBrush {
         this.rustScene = null;
         this.threeObjects = new Map(); // Maps Rust object IDs to Three.js objects
         this.wasmInitialized = false;
+        this.meshCache = new Map(); // mesh_id -> THREE.BufferGeometry
         
         // Post-processing
         this.composer = null;
@@ -283,39 +284,50 @@ class DeltaBrush {
         this.updateInfo();
     }
 
-    createThreeObject(rustObject) {
-        const geometry = new THREE.BufferGeometry();
-        const vertices = new Float32Array(rustObject.mesh.vertex_coords);
-        const indices = new Uint32Array(rustObject.mesh.face_indices);
+    // Get or create geometry for a mesh_id
+    getGeometry(meshId) {
+        if (!this.meshCache.has(meshId)) {
+            // Request mesh data from Rust
+            const meshData = this.rustScene.get_mesh_data(meshId);
+            
+            const geometry = new THREE.BufferGeometry();
+            const vertices = new Float32Array(meshData.vertex_coords);
+            const indices = new Uint32Array(meshData.face_indices);
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+            geometry.computeVertexNormals();
+            
+            this.meshCache.set(meshId, geometry);
+        }
+        
+        return this.meshCache.get(meshId);
+    }
 
-        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-        geometry.computeVertexNormals();
+    createThreeObject(renderInstance) {
+        const geometry = this.getGeometry(renderInstance.mesh_id);
 
-        const baseColor = new THREE.Color(
-            rustObject.material.color[0],
-            rustObject.material.color[1],
-            rustObject.material.color[2]
-        );
+        // TODO: for now, use default color
+        const baseColor = new THREE.Color(0x808080);
 
         // Create front-facing material (opaque)
         const frontMaterial = new THREE.MeshStandardMaterial({
             color: baseColor,
-            metalness: rustObject.material.metalness,
-            roughness: rustObject.material.roughness,
+            metalness: 0.5,
+            roughness: 0.5,
             side: THREE.FrontSide,
-            flatShading: true, // Sharp edges for flat shading
+            flatShading: true,
         });
 
         // Create back-facing material (translucent)
         const backMaterial = new THREE.MeshStandardMaterial({
             color: baseColor,
-            metalness: rustObject.material.metalness,
-            roughness: rustObject.material.roughness,
+            metalness: 0.5,
+            roughness: 0.5,
             side: THREE.BackSide,
             transparent: true,
             opacity: 0.3,
-            flatShading: true, // Sharp edges for flat shading
+            flatShading: true,
         });
 
         // Create a group to hold both meshes
@@ -327,30 +339,24 @@ class DeltaBrush {
         group.add(frontMesh);
         group.add(backMesh);
         
-        this.updateThreeObjectTransform(group, rustObject.transform);
+        this.updateThreeObjectTransform(group, renderInstance.transform);
 
         this.scene.add(group);
-        this.threeObjects.set(rustObject.id, group);
-        
-        // Store object ID on the group for raycasting identification
-        group.userData.objectId = rustObject.id;
-        // Also store on children for raycasting
-        frontMesh.userData.objectId = rustObject.id;
-        backMesh.userData.objectId = rustObject.id;
+        this.threeObjects.set(renderInstance.id, group);
     }
 
-    updateThreeObject(rustObject) {
-        const threeObj = this.threeObjects.get(rustObject.id);
+    updateThreeObject(renderInstance) {
+        const threeObj = this.threeObjects.get(renderInstance.id);
         if (threeObj) {
-            this.updateThreeObjectTransform(threeObj, rustObject.transform);
+            this.updateThreeObjectTransform(threeObj, renderInstance.transform);
         }
     }
 
     updateThreeObjectTransform(threeObj, transform) {
         threeObj.position.set(
-            transform.position[0],
-            transform.position[1],
-            transform.position[2]
+            transform.translation[0],
+            transform.translation[1],
+            transform.translation[2]
         );
         threeObj.quaternion.set(
             transform.rotation[0],

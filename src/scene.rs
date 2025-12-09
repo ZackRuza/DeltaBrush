@@ -1,103 +1,112 @@
 use wasm_bindgen::prelude::*;
 use crate::model::ModelVariant;
-use crate::{HalfEdgeMesh, Material, Mesh, ModelWrapper, Transform};
-use crate::scene_object::{SceneObject, WorldHitResponse};
+use crate::{HalfEdgeMesh, ModelWrapper, Transform};
+use crate::scene_graph::{SceneGraphNode, SceneGraphChild};
+use crate::RenderInstance;
+use crate::render_instance::MeshId;
 use crate::{console_log, Vec3};
-use crate::geometry::{Direction3, Point3, Ray3};
+use crate::geometry::{Direction3, Point3, Ray3, WorldHitResponse};
 use serde::{Serialize, Deserialize};
 
 // =================== CORE SCENE IMPLEMENTATION ===================
 
 /// Core scene implementation - pure Rust, no JS dependencies
 pub struct Scene {
-    objects: Vec<SceneObject>,
-    next_id: usize,
+    root: SceneGraphNode,
     dirty: bool,
+    meshes: Vec<ModelVariant>,
+    cached_render_instances: Vec<RenderInstance>,
+    hierarchy_dirty: bool,
 }
 
 impl Scene {
     pub fn new() -> Self {
         Scene {
-            objects: Vec::new(),
-            next_id: 0,
+            root: SceneGraphNode::new(),
             dirty: false,
+            meshes: Vec::new(),
+            cached_render_instances: Vec::new(),
+            hierarchy_dirty: true,
         }
     }
 
-    pub fn add_cube(&mut self, size: f32, position: [f32; 3], material: Material) -> usize {
-        let id = self.next_id;
-        self.next_id += 1;
+    /// Rebuild the flat cache when hierarchy changes
+    fn rebuild_cache(&mut self) {
+        if !self.hierarchy_dirty {
+            return;
+        }
+        
+        // Sync all render meshes first
+        self.root.sync_render_mesh(&mut self.meshes);
+        
+        // Rebuild the flat cache
+        let mut object_id = 0;
+        self.cached_render_instances = self.root.flatten_to_render_instances(
+            &Transform::identity(), 
+            &mut object_id,
+            &self.meshes
+        );
+        
+        self.hierarchy_dirty = false;
+        self.dirty = true;  // Mark for JS update
+    }
 
+    /// Add mesh to scene storage, returns mesh_id
+    fn add_mesh(&mut self, model: ModelVariant) -> MeshId {
+        let mesh_id = MeshId::new(self.meshes.len());
+        self.meshes.push(model);
+        mesh_id
+    }
+
+    pub fn add_cube(&mut self, size: f32, position: [f32; 3]) -> usize {
         let half_edge_mesh = HalfEdgeMesh::create_cube(size);
         let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
+        let mesh_id = self.add_mesh(model);
         
-        let object = SceneObject {
-            id,
-            model,
-            transform: Transform {
-                position,
-                rotation: [0.0, 0.0, 0.0, 1.0],
-                scale: [1.0, 1.0, 1.0],
-            },
-            material,
-            selected: false,
-        };
-
-        self.objects.push(object);
-        self.dirty = true;
-        id
+        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
+            position,
+            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ));
+        node.add_child(SceneGraphChild::Model(mesh_id));
+        
+        self.root.add_child(SceneGraphChild::Node(Box::new(node)));
+        self.hierarchy_dirty = true;
+        
+        // Return the index of the newly added child
+        self.root.children.len() - 1
     }
 
-    pub fn add_sphere(&mut self, radius: f32, position: [f32; 3], material: Material) -> usize {
-        let id = self.next_id;
-        self.next_id += 1;
-
-        let mesh = Mesh::create_sphere(radius, 16, 16);
-        let object = SceneObject {
-            id,
-            model: todo!(),
-            transform: Transform {
-                position,
-                rotation: [0.0, 0.0, 0.0, 1.0],
-                scale: [1.0, 1.0, 1.0],
-            },
-            material,
-            selected: false,
-        };
-
-        self.objects.push(object);
-        self.dirty = true;
-        id
+    pub fn add_sphere(&mut self, radius: f32, position: [f32; 3]) -> usize {
+        // TODO: Implement sphere as HalfEdgeMesh or add Mesh variant to ModelVariant
+        // For now, create a cube as placeholder
+        console_log!("Warning: Sphere not yet implemented, creating cube instead");
+        self.add_cube(radius * 2.0, position)
     }
 
-    pub fn add_plane(&mut self, size: f32, position: [f32; 3], material: Material) -> usize {
-        let id = self.next_id;
-        self.next_id += 1;
-
+    pub fn add_plane(&mut self, size: f32, position: [f32; 3]) -> usize {
         let half_edge_mesh = HalfEdgeMesh::create_plane(size);
         let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
+        let mesh_id = self.add_mesh(model);
         
-        let object = SceneObject {
-            id,
-            model,
-            transform: Transform {
-                position,
-                rotation: [0.0, 0.0, 0.0, 1.0],
-                scale: [1.0, 1.0, 1.0],
-            },
-            material,
-            selected: false,
-        };
-
-        self.objects.push(object);
-        self.dirty = true;
-        id
+        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
+            position,
+            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ));
+        node.add_child(SceneGraphChild::Model(mesh_id));
+        
+        self.root.add_child(SceneGraphChild::Node(Box::new(node)));
+        self.hierarchy_dirty = true;
+        
+        // Return the index of the newly added child
+        self.root.children.len() - 1
     }
 
     pub fn remove_object(&mut self, id: usize) -> bool {
-        if let Some(pos) = self.objects.iter().position(|obj| obj.id == id) {
-            self.objects.remove(pos);
-            self.dirty = true;
+        if id < self.root.children.len() {
+            self.root.children.remove(id);
+            self.hierarchy_dirty = true;
             true
         } else {
             false
@@ -105,65 +114,48 @@ impl Scene {
     }
 
     pub fn update_transform(&mut self, id: usize, transform: Transform) -> bool {
-        if let Some(obj) = self.objects.iter_mut().find(|obj| obj.id == id) {
-            obj.transform = transform;
-            self.dirty = true;
-            true
-        } else {
-            false
+        if id < self.root.children.len() {
+            if let SceneGraphChild::Node(node) = &mut self.root.children[id] {
+                node.transform = transform;
+                self.dirty = true;
+                return true;
+            }
         }
+        false
     }
 
     pub fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
-        let mut optional_hit: Option<WorldHitResponse> = None;
-
-        for scene_object in &self.objects {
-            if let Some(world_hit) = scene_object.raycast_closest_hit(ray) {
-                let should_replace = match &optional_hit {
-                    None => true,
-                    Some(existing) => world_hit.distance < existing.distance,
-                };
-                if should_replace {
-                    optional_hit = Some(world_hit);
-                }
-            }
-        }
-        optional_hit
+        let identity_transform = Transform::identity();
+        let mut object_id = 0;
+        self.root.raycast_closest_hit(ray, &identity_transform, &mut object_id, &self.meshes)
     }
 
     // Getters
-    pub fn is_dirty(&self) -> bool { self.dirty }
+    pub fn is_dirty(&self) -> bool { 
+        self.dirty || self.hierarchy_dirty
+    }
     pub fn clear_dirty(&mut self) { self.dirty = false; }
-    pub fn object_count(&self) -> usize { self.objects.len() }
-    pub fn objects(&self) -> &[SceneObject] { &self.objects }
+    pub fn object_count(&self) -> usize { self.root.children.len() }
+    
+    /// Get flattened render instances for JavaScript
+    pub fn get_render_instances(&mut self) -> &Vec<RenderInstance> {
+        self.rebuild_cache();
+        &self.cached_render_instances
+    }
     
     pub fn clear(&mut self) {
-        self.objects.clear();
-        self.dirty = true;
+        self.root = SceneGraphNode::new();
+        self.meshes.clear();
+        self.cached_render_instances.clear();
+        self.hierarchy_dirty = true;
     }
 
-    // Selection management
-    pub fn select_object(&mut self, id: usize) -> bool {
-        if let Some(obj) = self.objects.iter_mut().find(|obj| obj.id == id) {
-            obj.selected = true;
-            true
+    /// Get mesh data by ID for JavaScript
+    pub fn get_mesh(&self, mesh_id: usize) -> Option<&crate::Mesh> {
+        if mesh_id < self.meshes.len() {
+            Some(self.meshes[mesh_id].get_mesh())
         } else {
-            false
-        }
-    }
-
-    pub fn deselect_object(&mut self, id: usize) -> bool {
-        if let Some(obj) = self.objects.iter_mut().find(|obj| obj.id == id) {
-            obj.selected = false;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn deselect_all(&mut self) {
-        for obj in &mut self.objects {
-            obj.selected = false;
+            None
         }
     }
 }
@@ -206,17 +198,8 @@ impl SceneAPI {
     /// Add a cube to the scene
     pub fn add_cube(&mut self, size: f32, position: Vec<f32>) -> usize {
         let pos_array = [position[0], position[1], position[2]];
-        let material = Material {
-            color: [
-                js_sys::Math::random() as f32,
-                js_sys::Math::random() as f32,
-                js_sys::Math::random() as f32,
-            ],
-            metalness: 0.3,
-            roughness: 0.4,
-        };
 
-        let id = self.core.add_cube(size, pos_array, material);
+        let id = self.core.add_cube(size, pos_array);
         console_log!("Adding cube with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
         id
     }
@@ -224,17 +207,8 @@ impl SceneAPI {
     /// Add a sphere to the scene
     pub fn add_sphere(&mut self, radius: f32, position: Vec<f32>) -> usize {
         let pos_array = [position[0], position[1], position[2]];
-        let material = Material {
-            color: [
-                js_sys::Math::random() as f32,
-                js_sys::Math::random() as f32,
-                js_sys::Math::random() as f32,
-            ],
-            metalness: 0.3,
-            roughness: 0.4,
-        };
 
-        let id = self.core.add_sphere(radius, pos_array, material);
+        let id = self.core.add_sphere(radius, pos_array);
         console_log!("Adding sphere with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
         id
     }
@@ -242,17 +216,8 @@ impl SceneAPI {
     /// Add a plane to the scene
     pub fn add_plane(&mut self, size: f32, position: Vec<f32>) -> usize {
         let pos_array = [position[0], position[1], position[2]];
-        let material = Material {
-            color: [
-                js_sys::Math::random() as f32,
-                js_sys::Math::random() as f32,
-                js_sys::Math::random() as f32,
-            ],
-            metalness: 0.3,
-            roughness: 0.4,
-        };
 
-        let id = self.core.add_plane(size, pos_array, material);
+        let id = self.core.add_plane(size, pos_array);
         console_log!("Adding plane with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
         id
     }
@@ -268,11 +233,11 @@ impl SceneAPI {
     }
 
     pub fn update_transform(&mut self, id: usize, position: Vec<f32>, rotation: Vec<f32>, scale: Vec<f32>) {
-        let transform = Transform {
-            position: [position[0], position[1], position[2]],
-            rotation: [rotation[0], rotation[1], rotation[2], rotation[3]],
-            scale: [scale[0], scale[1], scale[2]],
-        };
+        let transform = Transform::from_position_rotation_scale(
+            [position[0], position[1], position[2]],
+            [rotation[0], rotation[1], rotation[2], rotation[3]],
+            [scale[0], scale[1], scale[2]],
+        );
 
         if self.core.update_transform(id, transform) {
             console_log!("Updated transform for object {}", id);
@@ -288,20 +253,17 @@ impl SceneAPI {
         self.core.clear();
     }
 
-    pub fn get_scene_data(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(self.core.objects()).unwrap()
+    pub fn get_scene_data(&mut self) -> JsValue {
+        serde_wasm_bindgen::to_value(self.core.get_render_instances()).unwrap()
     }
 
-    pub fn select_object(&mut self, id: usize) -> bool {
-        self.core.select_object(id)
-    }
-
-    pub fn deselect_object(&mut self, id: usize) -> bool {
-        self.core.deselect_object(id)
-    }
-
-    pub fn deselect_all(&mut self) {
-        self.core.deselect_all();
+    /// Get mesh data by ID for JavaScript
+    pub fn get_mesh_data(&self, mesh_id: usize) -> JsValue {
+        if let Some(mesh) = self.core.get_mesh(mesh_id) {
+            serde_wasm_bindgen::to_value(mesh).unwrap()
+        } else {
+            JsValue::NULL
+        }
     }
 
     pub fn raycast_closest_hit(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {
