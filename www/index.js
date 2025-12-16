@@ -274,11 +274,11 @@ class DeltaBrush {
                 });
                 
                 this.threeObjects.delete(id);
-                
-                // Also remove highlight if it exists
-                this.removeSelectionHighlight(id);
             }
         }
+
+        // Update selection highlights for all objects
+        this.updateAllSelectionHighlights(sceneData);
 
         this.rustScene.clear_dirty();
         this.updateInfo();
@@ -349,6 +349,73 @@ class DeltaBrush {
         const threeObj = this.threeObjects.get(renderInstance.id);
         if (threeObj) {
             this.updateThreeObjectTransform(threeObj, renderInstance.transform);
+        }
+    }
+
+    updateAllSelectionHighlights(sceneData) {
+        // Collect all selected objects for the outline pass
+        const selectedMeshes = [];
+        
+        for (const renderInstance of sceneData) {
+            const group = this.threeObjects.get(renderInstance.id);
+            if (group && renderInstance.is_selected) {
+                // Add both front and back meshes to selection
+                selectedMeshes.push(group.children[0]); // front mesh
+                selectedMeshes.push(group.children[1]); // back mesh
+                
+                // Apply visual highlighting (lighten color)
+                this.applyVisualHighlight(group);
+            } else if (group) {
+                // Remove visual highlighting
+                this.removeVisualHighlight(group);
+            }
+        }
+        
+        // Update outline pass with all selected objects at once
+        this.outlinePass.selectedObjects = selectedMeshes;
+    }
+
+    applyVisualHighlight(group) {
+        if (!group.userData.originalMaterial) {
+            const frontMesh = group.children[0];
+            const backMesh = group.children[1];
+            
+            // Store original material properties
+            group.userData.originalMaterial = {
+                frontColor: frontMesh.material.color.clone(),
+                frontOpacity: frontMesh.material.opacity,
+                frontTransparent: frontMesh.material.transparent,
+                backColor: backMesh.material.color.clone(),
+                backOpacity: backMesh.material.opacity,
+            };
+        }
+        
+        const frontMesh = group.children[0];
+        const backMesh = group.children[1];
+        
+        // Make both meshes lighter and more translucent
+        frontMesh.material.color.copy(group.userData.originalMaterial.frontColor).multiplyScalar(1.3);
+        frontMesh.material.transparent = true;
+        frontMesh.material.opacity = 0.7;
+        
+        backMesh.material.color.copy(group.userData.originalMaterial.backColor).multiplyScalar(1.3);
+        backMesh.material.opacity = 0.2;
+    }
+
+    removeVisualHighlight(group) {
+        if (group.userData.originalMaterial) {
+            const frontMesh = group.children[0];
+            const backMesh = group.children[1];
+            
+            // Restore original material properties
+            frontMesh.material.color.copy(group.userData.originalMaterial.frontColor);
+            frontMesh.material.opacity = group.userData.originalMaterial.frontOpacity;
+            frontMesh.material.transparent = group.userData.originalMaterial.frontTransparent;
+            
+            backMesh.material.color.copy(group.userData.originalMaterial.backColor);
+            backMesh.material.opacity = group.userData.originalMaterial.backOpacity;
+            
+            delete group.userData.originalMaterial;
         }
     }
 
@@ -464,25 +531,19 @@ class DeltaBrush {
                 this.showHitMarker(hitResult.position.x, hitResult.position.y, hitResult.position.z);
             }
             
-            // Select the hit object (entering edit mode)
-            if (hitResult.object_id !== undefined) {
-                const objectId = hitResult.object_id;
-                
-                // Check if clicking the same object
-                if (this.selectedObjectId === objectId) {
-                    console.log(`Object ${objectId} is already selected (in edit mode)`);
-                    return;
-                }
-                
-                // Select object (this enters "edit mode" - just means it's selected)
-                this.selectObject(objectId);
-                console.log(`Object ${objectId} selected (edit mode active)`);
+            // Select the hit object using its edge UUID path
+            if (hitResult.selection_path !== undefined) {
+                this.rustScene.select_by_edge_path(hitResult.selection_path);
+                console.log(`Selected object at edge path: [${hitResult.selection_path.join(', ')}]`);
+                document.getElementById('selected-object').textContent = `Object ${hitResult.object_id}`;
                 document.getElementById('edit-mode').textContent = 'On';
             }
         } else {
             console.log('No object hit');
             this.hideHitMarker();
-            this.clearSelection();
+            this.rustScene.deselect();
+            document.getElementById('selected-object').textContent = 'None';
+            document.getElementById('edit-mode').textContent = 'Off';
         }
     }
 
@@ -516,96 +577,7 @@ class DeltaBrush {
         }
     }
 
-    selectObject(objectId) {
-        // Clear previous selection's highlight if there was one
-        if (this.selectedObjectId !== null) {
-            this.removeSelectionHighlight(this.selectedObjectId);
-        }
-        
-        // Clear previous selection in Rust
-        this.rustScene.deselect_all();
-        
-        // Set new selection in Rust
-        this.rustScene.select_object(objectId);
-        this.selectedObjectId = objectId;
-        
-        // Apply highlight effect to Three.js object
-        this.applySelectionHighlight(objectId);
-        
-        // Update UI
-        document.getElementById('selected-object').textContent = objectId;
-        document.getElementById('edit-mode').textContent = 'On';
-    }
 
-    clearSelection() {
-        if (this.selectedObjectId !== null) {
-            console.log(`Deselecting object ${this.selectedObjectId}`);
-            
-            // Clear selection in Rust
-            this.rustScene.deselect_all();
-            
-            // Remove highlight effect
-            this.removeSelectionHighlight(this.selectedObjectId);
-            this.selectedObjectId = null;
-            
-            // Update UI
-            document.getElementById('selected-object').textContent = 'None';
-            document.getElementById('edit-mode').textContent = 'Off';
-        }
-    }
-
-    applySelectionHighlight(objectId) {
-        const group = this.threeObjects.get(objectId);
-        if (!group) return;
-
-        // The group contains two meshes: front and back
-        const frontMesh = group.children[0];
-        const backMesh = group.children[1];
-
-        // Store original material properties if not already stored
-        if (!group.userData.originalMaterial) {
-            group.userData.originalMaterial = {
-                frontColor: frontMesh.material.color.clone(),
-                frontOpacity: frontMesh.material.opacity,
-                frontTransparent: frontMesh.material.transparent,
-                backColor: backMesh.material.color.clone(),
-                backOpacity: backMesh.material.opacity,
-            };
-        }
-
-        // Make both meshes lighter and more translucent
-        frontMesh.material.color.multiplyScalar(1.3); // Lighten by 30%
-        frontMesh.material.transparent = true;
-        frontMesh.material.opacity = 0.7;
-        
-        backMesh.material.color.multiplyScalar(1.3); // Lighten by 30%
-        backMesh.material.opacity = 0.2; // Make back even more translucent when selected
-
-        // Add the meshes to the outline pass for post-processing outline effect
-        // This works for all mesh types including flat planes
-        this.outlinePass.selectedObjects = [frontMesh, backMesh];
-    }
-
-    removeSelectionHighlight(objectId) {
-        const group = this.threeObjects.get(objectId);
-        if (group && group.userData.originalMaterial) {
-            const frontMesh = group.children[0];
-            const backMesh = group.children[1];
-            
-            // Restore original material properties
-            frontMesh.material.color.copy(group.userData.originalMaterial.frontColor);
-            frontMesh.material.opacity = group.userData.originalMaterial.frontOpacity;
-            frontMesh.material.transparent = group.userData.originalMaterial.frontTransparent;
-            
-            backMesh.material.color.copy(group.userData.originalMaterial.backColor);
-            backMesh.material.opacity = group.userData.originalMaterial.backOpacity;
-            
-            delete group.userData.originalMaterial;
-        }
-
-        // Clear the outline pass selection
-        this.outlinePass.selectedObjects = [];
-    }
 
     onWindowResize() {
         const canvas = document.getElementById('canvas');

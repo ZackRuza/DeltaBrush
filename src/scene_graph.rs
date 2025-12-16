@@ -1,12 +1,46 @@
 use crate::{Point3, RenderInstance, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{Ray3, WorldHitResponse}, model::ModelVariant};
 use crate::render_instance::MeshId;
+use uuid::Uuid;
 
+
+/// Unique identifier for an edge in the scene graph
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EdgeId(Uuid);
+
+impl EdgeId {
+    /// Create a new unique edge ID
+    pub fn new() -> Self {
+        EdgeId(Uuid::new_v4())
+    }
+    
+    /// Get the underlying UUID
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+    
+    /// Convert to string for serialization
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+    
+    /// Parse from string
+    pub fn from_string(s: &str) -> Result<Self, uuid::Error> {
+        Ok(EdgeId(Uuid::parse_str(s)?))
+    }
+}
 
 /// A child in the scene graph can be either another node or a model
 #[derive(Clone)]
 pub enum SceneGraphChild {
     Node(Box<SceneGraphNode>),
     Model(MeshId),  // mesh_id reference to central storage
+}
+
+/// An edge connects a parent to a child with a unique identifier
+#[derive(Clone)]
+pub struct SceneGraphEdge {
+    pub edge_id: EdgeId,
+    pub child: SceneGraphChild,
 }
 
 /// A node in the scene graph hierarchy
@@ -16,7 +50,7 @@ pub enum SceneGraphChild {
 #[derive(Clone)]
 pub struct SceneGraphNode {
     pub transform: Transform,
-    pub children: Vec<SceneGraphChild>,
+    pub edges: Vec<SceneGraphEdge>,  // Children accessed via edges with UUIDs
 }
 
 impl SceneGraphNode {
@@ -24,7 +58,7 @@ impl SceneGraphNode {
     pub fn new() -> Self {
         SceneGraphNode {
             transform: Transform::identity(),
-            children: Vec::new(),
+            edges: Vec::new(),
         }
     }
 
@@ -32,19 +66,21 @@ impl SceneGraphNode {
     pub fn with_transform(transform: Transform) -> Self {
         SceneGraphNode {
             transform,
-            children: Vec::new(),
+            edges: Vec::new(),
         }
     }
 
-    /// Add a child to this node
-    pub fn add_child(&mut self, child: SceneGraphChild) {
-        self.children.push(child);
+    /// Add a child to this node, returns the edge ID
+    pub fn add_child(&mut self, child: SceneGraphChild) -> EdgeId {
+        let edge_id = EdgeId::new();
+        self.edges.push(SceneGraphEdge { edge_id, child });
+        edge_id
     }
 
     /// Sync all render meshes in the subtree
     pub fn sync_render_mesh(&mut self, meshes: &mut [ModelVariant]) {
-        for child in &mut self.children {
-            match child {
+        for edge in &mut self.edges {
+            match &mut edge.child {
                 SceneGraphChild::Node(node) => {
                     node.sync_render_mesh(meshes);
                 }
@@ -57,22 +93,44 @@ impl SceneGraphNode {
 
     /// Flatten the scene graph into a list of renderable instances
     /// This is what JavaScript needs for rendering
-    pub fn flatten_to_render_instances(&self, parent_transform: &Transform, object_id: &mut usize, meshes: &[ModelVariant]) -> Vec<RenderInstance> {
+    pub fn flatten_to_render_instances(
+        &self, 
+        parent_transform: &Transform, 
+        object_id: &mut usize, 
+        meshes: &[ModelVariant],
+        current_path: &[EdgeId],
+        selected_path: Option<&Vec<EdgeId>>
+    ) -> Vec<RenderInstance> {
         let world_transform = self.transform.compose_with_parent(parent_transform);
         let mut instances = Vec::new();
 
-        for child in &self.children {
-            match child {
+        for edge in &self.edges {
+            let mut child_path = current_path.to_vec();
+            child_path.push(edge.edge_id);
+            
+            match &edge.child {
                 SceneGraphChild::Node(child_node) => {
                     // Recursively flatten child nodes
-                    instances.extend(child_node.flatten_to_render_instances(&world_transform, object_id, meshes));
+                    instances.extend(child_node.flatten_to_render_instances(
+                        &world_transform, 
+                        object_id, 
+                        meshes,
+                        &child_path,
+                        selected_path
+                    ));
                 }
                 SceneGraphChild::Model(mesh_id) => {
+                    // Check if this model OR any of its ancestors is selected
+                    let is_selected = selected_path
+                        .map(|sel| child_path.starts_with(sel) || sel.starts_with(&child_path))
+                        .unwrap_or(false);
+                    
                     // Add this model as a render instance
                     instances.push(RenderInstance {
                         mesh_id: *mesh_id,
                         transform: world_transform.clone(),
                         id: *object_id,
+                        is_selected,
                     });
                     *object_id += 1;
                 }
@@ -84,18 +142,27 @@ impl SceneGraphNode {
 
     /// Perform raycast against this node and all children
     /// Returns the closest hit in world coordinates
-    pub fn raycast_closest_hit(&self, ray: Ray3, parent_transform: &Transform, object_id: &mut usize, meshes: &[ModelVariant]) -> Option<WorldHitResponse> {
+    pub fn raycast_closest_hit(
+        &self, 
+        ray: Ray3, 
+        parent_transform: &Transform, 
+        object_id: &mut usize, 
+        meshes: &[ModelVariant],
+        current_path: &mut Vec<EdgeId>
+    ) -> Option<WorldHitResponse> {
         // Compose this node's transform with the parent's
         let world_transform = self.transform.compose_with_parent(parent_transform);
         
         let mut closest: Option<WorldHitResponse> = None;
 
         // Check all children
-        for child in &self.children {
-            match child {
+        for edge in &self.edges {
+            current_path.push(edge.edge_id);
+            
+            match &edge.child {
                 SceneGraphChild::Node(child_node) => {
                     // Recursively check child nodes
-                    if let Some(hit) = child_node.raycast_closest_hit(ray, &world_transform, object_id, meshes) {
+                    if let Some(hit) = child_node.raycast_closest_hit(ray, &world_transform, object_id, meshes, current_path) {
                         let should_replace = match &closest {
                             None => true,
                             Some(existing) => hit.distance < existing.distance,
@@ -107,18 +174,21 @@ impl SceneGraphNode {
                 }
                 SceneGraphChild::Model(mesh_id) => {
                     // Check ray intersection with this model
-                    if let Some(hit) = Self::raycast_model(ray, &meshes[mesh_id.as_usize()], &world_transform, *object_id) {
+                    if let Some(mut hit) = Self::raycast_model(ray, &meshes[mesh_id.as_usize()], &world_transform, *object_id) {
                         let should_replace = match &closest {
                             None => true,
                             Some(existing) => hit.distance < existing.distance,
                         };
                         if should_replace {
+                            hit.selection_path = current_path.clone();
                             closest = Some(hit);
                         }
                     }
                     *object_id += 1;
                 }
             }
+            
+            current_path.pop();
         }
 
         closest
@@ -158,6 +228,7 @@ impl SceneGraphNode {
                         hit_response: world_hit,
                         distance: this_world_distance,
                         object_id,
+                        selection_path: Vec::new(),  // Will be set by caller
                     });
                 }
             }

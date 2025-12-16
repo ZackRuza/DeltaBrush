@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use crate::model::ModelVariant;
 use crate::{HalfEdgeMesh, ModelWrapper, Transform};
-use crate::scene_graph::{SceneGraphNode, SceneGraphChild};
+use crate::scene_graph::{SceneGraphNode, SceneGraphChild, EdgeId};
 use crate::RenderInstance;
 use crate::render_instance::MeshId;
 use crate::{console_log, Vec3};
@@ -17,6 +17,7 @@ pub struct Scene {
     meshes: Vec<ModelVariant>,
     cached_render_instances: Vec<RenderInstance>,
     hierarchy_dirty: bool,
+    selected_path: Option<Vec<EdgeId>>,  // Path of edge IDs
 }
 
 impl Scene {
@@ -27,6 +28,7 @@ impl Scene {
             meshes: Vec::new(),
             cached_render_instances: Vec::new(),
             hierarchy_dirty: true,
+            selected_path: None,  // Path of edge IDs
         }
     }
 
@@ -44,7 +46,9 @@ impl Scene {
         self.cached_render_instances = self.root.flatten_to_render_instances(
             &Transform::identity(), 
             &mut object_id,
-            &self.meshes
+            &self.meshes,
+            &[],  // Empty path for root
+            self.selected_path.as_ref()
         );
         
         self.hierarchy_dirty = false;
@@ -70,11 +74,12 @@ impl Scene {
         ));
         node.add_child(SceneGraphChild::Model(mesh_id));
         
+        let child_count = self.root.edges.len();
         self.root.add_child(SceneGraphChild::Node(Box::new(node)));
         self.hierarchy_dirty = true;
         
         // Return the index of the newly added child
-        self.root.children.len() - 1
+        child_count
     }
 
     pub fn add_sphere(&mut self, radius: f32, position: [f32; 3]) -> usize {
@@ -96,16 +101,17 @@ impl Scene {
         ));
         node.add_child(SceneGraphChild::Model(mesh_id));
         
+        let child_count = self.root.edges.len();
         self.root.add_child(SceneGraphChild::Node(Box::new(node)));
         self.hierarchy_dirty = true;
         
         // Return the index of the newly added child
-        self.root.children.len() - 1
+        child_count
     }
 
     pub fn remove_object(&mut self, id: usize) -> bool {
-        if id < self.root.children.len() {
-            self.root.children.remove(id);
+        if id < self.root.edges.len() {
+            self.root.edges.remove(id);
             self.hierarchy_dirty = true;
             true
         } else {
@@ -114,8 +120,8 @@ impl Scene {
     }
 
     pub fn update_transform(&mut self, id: usize, transform: Transform) -> bool {
-        if id < self.root.children.len() {
-            if let SceneGraphChild::Node(node) = &mut self.root.children[id] {
+        if id < self.root.edges.len() {
+            if let SceneGraphChild::Node(node) = &mut self.root.edges[id].child {
                 node.transform = transform;
                 self.dirty = true;
                 return true;
@@ -127,7 +133,8 @@ impl Scene {
     pub fn raycast_closest_hit(&self, ray: Ray3) -> Option<WorldHitResponse> {
         let identity_transform = Transform::identity();
         let mut object_id = 0;
-        self.root.raycast_closest_hit(ray, &identity_transform, &mut object_id, &self.meshes)
+        let mut current_path = Vec::new();
+        self.root.raycast_closest_hit(ray, &identity_transform, &mut object_id, &self.meshes, &mut current_path)
     }
 
     // Getters
@@ -135,7 +142,7 @@ impl Scene {
         self.dirty || self.hierarchy_dirty
     }
     pub fn clear_dirty(&mut self) { self.dirty = false; }
-    pub fn object_count(&self) -> usize { self.root.children.len() }
+    pub fn object_count(&self) -> usize { self.root.edges.len() }
     
     /// Get flattened render instances for JavaScript
     pub fn get_render_instances(&mut self) -> &Vec<RenderInstance> {
@@ -148,6 +155,7 @@ impl Scene {
         self.meshes.clear();
         self.cached_render_instances.clear();
         self.hierarchy_dirty = true;
+        self.selected_path = None;
     }
 
     /// Get mesh data by ID for JavaScript
@@ -157,6 +165,69 @@ impl Scene {
         } else {
             None
         }
+    }
+    
+    /// Select an item by edge ID path
+    pub fn select_by_edge_path(&mut self, path: Vec<EdgeId>) -> bool {
+        if self.edge_path_is_valid(&path) {
+            self.selected_path = Some(path);
+            self.hierarchy_dirty = true;  // Need to rebuild to mark selected instances
+            true
+        } else {
+            false
+        }
+    }
+    
+    /// Deselect current selection
+    pub fn deselect(&mut self) {
+        if self.selected_path.is_some() {
+            self.selected_path = None;
+            self.hierarchy_dirty = true;  // Need to rebuild to unmark instances
+        }
+    }
+    
+    /// Check if an edge ID path is valid in the hierarchy
+    fn edge_path_is_valid(&self, path: &[EdgeId]) -> bool {
+        if path.is_empty() {
+            return false;
+        }
+        
+        let mut current = &self.root;
+        for (i, &edge_id) in path.iter().enumerate() {
+            // Find edge with matching ID
+            let edge = current.edges.iter().find(|e| e.edge_id == edge_id);
+            match edge {
+                Some(e) => match &e.child {
+                    SceneGraphChild::Node(node) => {
+                        current = node;
+                    }
+                    SceneGraphChild::Model(_) => {
+                        // Models are leaf nodes, path should end here
+                        return i == path.len() - 1;
+                    }
+                }
+                None => return false,
+            }
+        }
+        true
+    }
+    
+    /// Get the currently selected path
+    pub fn get_selected_path(&self) -> Option<&Vec<EdgeId>> {
+        self.selected_path.as_ref()
+    }
+    
+    /// Select parent of currently selected item
+    pub fn select_parent(&mut self) -> bool {
+        if let Some(path) = &self.selected_path {
+            if path.len() > 1 {
+                let parent_path = path[..path.len()-1].to_vec();
+                self.selected_path = Some(parent_path);
+                self.hierarchy_dirty = true;
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -180,6 +251,7 @@ struct HitPosition {
 struct HitData {
     position: HitPosition,
     object_id: usize,
+    selection_path: Vec<String>,  // Edge IDs as strings for JavaScript
 }
 
 
@@ -282,6 +354,7 @@ impl SceneAPI {
                         z: world_hit.hit_response.hit_position.vec3.z,
                     },
                     object_id: world_hit.object_id,
+                    selection_path: world_hit.selection_path.iter().map(|edge_id| edge_id.to_string()).collect(),
                 };
                 return serde_wasm_bindgen::to_value(&hit_data).unwrap();
             } else {
@@ -290,6 +363,39 @@ impl SceneAPI {
             }
         } else {
             // TODO: Property handling if vectors aren't 3D. Throw error.
+            JsValue::NULL
+        }
+    }
+    
+    pub fn select_by_edge_path(&mut self, path_strings: Vec<String>) -> bool {
+        // Parse EdgeId strings
+        let mut path = Vec::new();
+        for s in path_strings {
+            match EdgeId::from_string(&s) {
+                Ok(edge_id) => path.push(edge_id),
+                Err(_) => {
+                    console_log!("Invalid EdgeId in path: {}", s);
+                    return false;
+                }
+            }
+        }
+        self.core.select_by_edge_path(path)
+    }
+    
+    pub fn deselect(&mut self) {
+        self.core.deselect();
+    }
+    
+    pub fn select_parent(&mut self) -> bool {
+        self.core.select_parent()
+    }
+    
+    pub fn get_selected_path(&self) -> JsValue {
+        if let Some(path) = self.core.get_selected_path() {
+            // Convert EdgeIds to strings for JavaScript
+            let string_path: Vec<String> = path.iter().map(|edge_id| edge_id.to_string()).collect();
+            serde_wasm_bindgen::to_value(&string_path).unwrap()
+        } else {
             JsValue::NULL
         }
     }

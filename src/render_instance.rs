@@ -21,4 +21,5 @@ pub struct RenderInstance {
     pub mesh_id: MeshId,
     pub transform: Transform,
     pub id: usize,
+    pub is_selected: bool,
 }

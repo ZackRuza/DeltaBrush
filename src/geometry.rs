@@ -1,4 +1,4 @@
-use crate::{Transform, Transformable, Vec3};
+use crate::{Transform, Transformable, Vec3, scene_graph::EdgeId};
 
 
 
@@ -158,4 +158,5 @@ pub struct WorldHitResponse {
     pub hit_response: HitResponse,
     pub distance: f32,
     pub object_id: usize,
+    pub selection_path: Vec<EdgeId>,  // Path of edge IDs from root to selected element
 }
