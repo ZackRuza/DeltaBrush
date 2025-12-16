@@ -188,6 +188,25 @@ class DeltaBrush {
             this.onMouseUp(event);
         });
 
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (event) => {
+            this.onKeyDown(event);
+        });
+
+    }
+
+    onKeyDown(event) {
+        // Ctrl+Space: move selection up the hierarchy
+        if (event.ctrlKey && event.code === 'Space') {
+            event.preventDefault();
+
+            if (!this.rustScene) return;
+
+            const didSelectParent = this.rustScene.select_parent();
+            if (didSelectParent) {
+                document.getElementById('edit-mode').textContent = 'On';
+            }
+        }
     }
 
     createCube() {

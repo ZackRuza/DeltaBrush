@@ -62,6 +62,32 @@ impl Scene {
         mesh_id
     }
 
+    fn insertion_parent_mut(&mut self) -> &mut SceneGraphNode {
+        fn walk<'a>(node: &'a mut SceneGraphNode, path: &[EdgeId]) -> &'a mut SceneGraphNode {
+            let Some((&head, tail)) = path.split_first() else {
+                return node;
+            };
+
+            let Some(edge_index) = node.edges.iter().position(|e| e.edge_id == head) else {
+                return node;
+            };
+
+            let child_node_ptr: *mut SceneGraphNode = match &mut node.edges[edge_index].child {
+                SceneGraphChild::Node(child_node) => child_node.as_mut() as *mut SceneGraphNode,
+                SceneGraphChild::Model(_) => return node,
+            };
+
+            // Safety: we only traverse; we don't mutate `edges` during this walk, so the
+            // pointer to the boxed child node remains valid for the duration of the call.
+            unsafe { walk(&mut *child_node_ptr, tail) }
+        }
+
+        match self.selected_path.as_deref() {
+            Some(path) if !path.is_empty() => walk(&mut self.root, path),
+            _ => &mut self.root,
+        }
+    }
+
     pub fn add_cube(&mut self, size: f32, position: [f32; 3]) -> usize {
         let half_edge_mesh = HalfEdgeMesh::create_cube(size);
         let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
@@ -73,9 +99,10 @@ impl Scene {
             [1.0, 1.0, 1.0],
         ));
         node.add_child(SceneGraphChild::Model(mesh_id));
-        
-        let child_count = self.root.edges.len();
-        self.root.add_child(SceneGraphChild::Node(Box::new(node)));
+
+        let parent = self.insertion_parent_mut();
+        let child_count = parent.edges.len();
+        parent.add_child(SceneGraphChild::Node(Box::new(node)));
         self.hierarchy_dirty = true;
         
         // Return the index of the newly added child
