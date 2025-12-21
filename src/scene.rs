@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use crate::model::ModelVariant;
-use crate::{HalfEdgeMesh, ModelWrapper, Transform};
+use crate::{HalfEdgeMesh, Mesh, ModelWrapper, Transform};
 use crate::scene_graph::{SceneGraphNode, SceneGraphChild, EdgeId};
 use crate::RenderInstance;
 use crate::render_instance::MeshId;
@@ -110,10 +110,27 @@ impl Scene {
     }
 
     pub fn add_sphere(&mut self, radius: f32, position: [f32; 3]) -> usize {
-        // TODO: Implement sphere as HalfEdgeMesh or add Mesh variant to ModelVariant
-        // For now, create a cube as placeholder
-        console_log!("Warning: Sphere not yet implemented, creating cube instead");
-        self.add_cube(radius * 2.0, position)
+        // Create a UV sphere mesh, then convert to half-edge for editing/rendering.
+        // Keep tessellation modest for interactive performance.
+        let sphere_mesh = Mesh::create_sphere(radius, 24, 16);
+        let half_edge_mesh = HalfEdgeMesh::from_mesh(&sphere_mesh);
+        let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
+        let mesh_id = self.add_mesh(model);
+
+        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
+            position,
+            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ));
+        node.add_child(SceneGraphChild::Model(mesh_id));
+
+        let parent = self.insertion_parent_mut();
+        let child_count = parent.edges.len();
+        parent.add_child(SceneGraphChild::Node(Box::new(node)));
+        self.hierarchy_dirty = true;
+
+        // Return the index of the newly added child
+        child_count
     }
 
     pub fn add_plane(&mut self, size: f32, position: [f32; 3]) -> usize {

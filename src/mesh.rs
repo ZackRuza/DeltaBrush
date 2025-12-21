@@ -113,9 +113,9 @@ impl Mesh {
                 let next = current + segments + 1;
                 
                 // First triangle
-                mesh.add_triangle(next, current, current + 1);
+                mesh.add_triangle(current, next, current + 1);
                 // Second triangle  
-                mesh.add_triangle(next, current + 1, next + 1);
+                mesh.add_triangle(current + 1, next, next + 1);
             }
         }
         
