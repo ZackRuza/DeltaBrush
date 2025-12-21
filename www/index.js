@@ -173,12 +173,16 @@ class DeltaBrush {
             subOptions.classList.toggle("show");
         });
 
+        document.getElementById('subbtn-3').addEventListener('click', () => {
+            document.getElementById('file-upload').click(); // triggers file picker
+        });
+
         // Mouse click detection
         const canvas = this.renderer.domElement;
         
         canvas.addEventListener('mousedown', (event) => {
             this.onMouseDown(event);
-        });
+        }); 
 
         canvas.addEventListener('mousemove', (event) => {
             this.onMouseMove(event);
