@@ -197,6 +197,23 @@ class DeltaBrush {
             this.onKeyDown(event);
         });
 
+        const tabs = document.querySelectorAll('.tab');
+        const panels = document.querySelectorAll('.tab-content');
+
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+
+                tabs.forEach(t => t.classList.remove('active'));
+                panels.forEach(p => p.classList.remove('active'));
+
+                tab.classList.add('active');
+
+                const targetId = tab.dataset.tab;
+                document.getElementById(targetId).classList.add('active');
+            });
+        });
+
     }
 
     onKeyDown(event) {
