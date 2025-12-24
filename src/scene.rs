@@ -8,6 +8,7 @@ use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, Point3, Ray3, WorldHitResponse};
 use crate::obj_import::parse_obj_to_mesh;
 use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 
 // =================== CORE SCENE IMPLEMENTATION ===================
 
@@ -15,7 +16,7 @@ use serde::{Serialize, Deserialize};
 pub struct Scene {
     root: SceneGraphNode,
     dirty: bool,
-    meshes: Vec<ModelVariant>,
+    meshes: HashMap<MeshId, ModelVariant>,
     cached_render_instances: Vec<RenderInstance>,
     hierarchy_dirty: bool,
     selected_path: Option<Vec<EdgeId>>,  // Path of edge IDs
@@ -26,7 +27,7 @@ impl Scene {
         Scene {
             root: SceneGraphNode::new(),
             dirty: false,
-            meshes: Vec::new(),
+            meshes: HashMap::new(),
             cached_render_instances: Vec::new(),
             hierarchy_dirty: true,
             selected_path: None,  // Path of edge IDs
@@ -58,8 +59,8 @@ impl Scene {
 
     /// Add mesh to scene storage, returns mesh_id
     fn add_mesh(&mut self, model: ModelVariant) -> MeshId {
-        let mesh_id = MeshId::new(self.meshes.len());
-        self.meshes.push(model);
+        let mesh_id = MeshId::new();
+        self.meshes.insert(mesh_id, model);
         mesh_id
     }
 
@@ -223,12 +224,8 @@ impl Scene {
     }
 
     /// Get mesh data by ID for JavaScript
-    pub fn get_mesh(&self, mesh_id: usize) -> Option<&crate::Mesh> {
-        if mesh_id < self.meshes.len() {
-            Some(self.meshes[mesh_id].get_mesh())
-        } else {
-            None
-        }
+    pub fn get_mesh(&self, mesh_id: MeshId) -> Option<&crate::Mesh> {
+        self.meshes.get(&mesh_id).map(|m| m.get_mesh())
     }
     
     /// Select an item by edge ID path
@@ -408,12 +405,15 @@ impl SceneAPI {
     }
 
     /// Get mesh data by ID for JavaScript
-    pub fn get_mesh_data(&self, mesh_id: usize) -> JsValue {
-        if let Some(mesh) = self.core.get_mesh(mesh_id) {
-            serde_wasm_bindgen::to_value(mesh).unwrap()
-        } else {
-            JsValue::NULL
+    pub fn get_mesh_data(&self, mesh_id_str: String) -> JsValue {
+        // Parse UUID string back into MeshId
+        if let Ok(uuid) = uuid::Uuid::parse_str(&mesh_id_str) {
+            let mesh_id = MeshId(uuid);
+            if let Some(mesh) = self.core.get_mesh(mesh_id) {
+                return serde_wasm_bindgen::to_value(mesh).unwrap();
+            }
         }
+        JsValue::NULL
     }
 
     pub fn raycast_closest_hit(&self, origin: Vec<f32>, direction: Vec<f32>) -> JsValue {

@@ -1,17 +1,14 @@
 use serde::Serialize;
 use crate::Transform;
+use uuid::Uuid;
 
-/// Type-safe mesh ID to prevent confusion with other IDs
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-pub struct MeshId(pub usize);
+/// Type-safe mesh ID using UUID to prevent index fragility
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct MeshId(pub Uuid);
 
 impl MeshId {
-    pub fn new(id: usize) -> Self {
-        MeshId(id)
-    }
-    
-    pub fn as_usize(&self) -> usize {
-        self.0
+    pub fn new() -> Self {
+        MeshId(Uuid::new_v4())
     }
 }
 
