@@ -6,6 +6,7 @@ use crate::RenderInstance;
 use crate::render_instance::MeshId;
 use crate::{console_log, Vec3};
 use crate::geometry::{Direction3, Point3, Ray3, WorldHitResponse};
+use crate::obj_import::parse_obj_to_mesh;
 use serde::{Serialize, Deserialize};
 
 // =================== CORE SCENE IMPLEMENTATION ===================
@@ -130,6 +131,25 @@ impl Scene {
         self.hierarchy_dirty = true;
 
         // Return the index of the newly added child
+        child_count
+    }
+
+    pub fn add_raw_mesh(&mut self, mesh: Mesh, position: [f32; 3]) -> usize {
+        let model = ModelVariant::Mesh(mesh);
+        let mesh_id = self.add_mesh(model);
+
+        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
+            position,
+            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ));
+        node.add_child(SceneGraphChild::Model(mesh_id));
+
+        let parent = self.insertion_parent_mut();
+        let child_count = parent.edges.len();
+        parent.add_child(SceneGraphChild::Node(Box::new(node)));
+        self.hierarchy_dirty = true;
+
         child_count
     }
 
@@ -336,6 +356,20 @@ impl SceneAPI {
         let id = self.core.add_plane(size, pos_array);
         console_log!("Adding plane with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
         id
+    }
+
+    pub fn import_obj(&mut self, obj_text: String, position: Vec<f32>) -> Result<usize, JsValue> {
+        let pos_array = [position[0], position[1], position[2]];
+        let mesh = parse_obj_to_mesh(&obj_text).map_err(|e| JsValue::from_str(&e))?;
+        let id = self.core.add_raw_mesh(mesh, pos_array);
+        console_log!(
+            "Imported OBJ with id {} at position [{}, {}, {}]",
+            id,
+            position[0],
+            position[1],
+            position[2]
+        );
+        Ok(id)
     }
 
     pub fn remove_object(&mut self, id: usize) -> bool {

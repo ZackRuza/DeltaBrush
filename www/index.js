@@ -177,6 +177,32 @@ class DeltaBrush {
             document.getElementById('file-upload').click(); // triggers file picker
         });
 
+        const fileUpload = document.getElementById('file-upload');
+        fileUpload.addEventListener('change', async (event) => {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            if (!this.wasmInitialized || !this.rustScene) {
+                console.error('WASM not initialized');
+                fileUpload.value = '';
+                return;
+            }
+
+            try {
+                const objText = await file.text();
+                const position = [
+                    (Math.random() - 0.5) * 4,
+                    (Math.random() - 0.5) * 4,
+                    (Math.random() - 0.5) * 4
+                ];
+                this.rustScene.import_obj(objText, position);
+            } catch (e) {
+                console.error('OBJ import failed', e);
+            } finally {
+                // Allow selecting the same file again later.
+                fileUpload.value = '';
+            }
+        });
+
         // Mouse click detection
         const canvas = this.renderer.domElement;
         

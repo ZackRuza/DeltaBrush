@@ -14,6 +14,7 @@ mod model_wrapper;
 mod model;
 mod visitor;
 mod render_instance;
+mod obj_import;
 
 pub use algebra::Vec3;
 pub use mesh::Mesh;
