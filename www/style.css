@@ -219,3 +219,63 @@ aside.right-panel {
     background-color: #ffffff20;  
     border-radius: 4px;
 }
+
+.models-list {
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.model-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: #1f1f1f;
+    border-radius: 6px;
+}
+
+.model-image {
+    width: 40px;
+    height: 40px;
+    background-color: #3e3e42;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.model-name {
+    flex: 1;
+    color: #ccc;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    cursor: text;
+    outline: none;
+}
+
+.model-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.model-actions button {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    padding: 0;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    background-color: #3e3e42;
+    color: #fff;
+    transition: background-color 0.2s;
+}
+
+.model-actions button:hover {
+    background-color: #5a5a5f;
+}
+
+.model-actions button:active {
+    background-color: #252526;
+}

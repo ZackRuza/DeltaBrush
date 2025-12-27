@@ -48,6 +48,7 @@ class DeltaBrush {
         this.setupScene();
         this.setupLights();
         this.setupEventListeners();
+        this.setupModelsPanel();
         this.animate();
     }
 
@@ -236,7 +237,75 @@ class DeltaBrush {
             });
         });
 
+        const app = document.getElementById("app");
+        const handle = document.querySelector(".resize-handle");
+
+        let isResizing = false;
+
+        handle.addEventListener("mousedown", () => {
+            isResizing = true;
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            if (!isResizing) return;
+
+            const appRect = app.getBoundingClientRect();
+            const newAsideWidth = appRect.right - e.clientX;
+
+            if (newAsideWidth < 250 || newAsideWidth > 500) return;
+
+            app.style.gridTemplateColumns = `1fr 4px ${newAsideWidth}px`;
+        });
+
+        window.addEventListener("mouseup", () => {
+            isResizing = false;
+        });
+
+
     }
+
+    setupModelsPanel() {
+        const models = ["Cube", "Sphere", "Imported Model"];
+        const modelsList = document.getElementById("models-list");
+
+        if (!modelsList) return;
+
+        models.forEach(modelName => {
+            const modelItem = document.createElement("div");
+            modelItem.classList.add("model-item");
+
+            const modelImage = document.createElement("div");
+            modelImage.classList.add("model-image");
+
+            const nameSpan = document.createElement("span");
+            nameSpan.classList.add("model-name");
+            nameSpan.textContent = modelName;
+
+            const actions = document.createElement("div");
+            actions.classList.add("model-actions");
+
+            const settingsBtn = document.createElement("button");
+            settingsBtn.textContent = "⚙️";
+            settingsBtn.classList.add("model-action-btn");
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.textContent = "❌";
+            deleteBtn.classList.add("model-action-btn");
+            deleteBtn.addEventListener("click", () => {
+                modelItem.remove();
+            });
+
+            actions.appendChild(settingsBtn);
+            actions.appendChild(deleteBtn);
+
+            modelItem.appendChild(modelImage);
+            modelItem.appendChild(nameSpan);
+            modelItem.appendChild(actions);
+
+            modelsList.appendChild(modelItem);
+        });
+    }
+
 
     onKeyDown(event) {
         // Ctrl+Space: move selection up the hierarchy
