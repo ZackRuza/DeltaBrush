@@ -1,4 +1,5 @@
 use crate::{HalfEdgeMesh, Mesh, ModelWrapper};
+use std::string::String;
 
 /// Trait for mesh representations that can be edited and rendered
 pub trait ToMesh: Clone {
@@ -9,6 +10,12 @@ pub trait ToMesh: Clone {
 pub enum ModelVariant {
     HalfEdgeMesh(ModelWrapper<HalfEdgeMesh>),
     Mesh(Mesh),
+}
+
+#[derive(Clone)]
+pub struct ModelEntry {
+    pub model: ModelVariant,
+    pub name: String,
 }
 
 impl ModelVariant {

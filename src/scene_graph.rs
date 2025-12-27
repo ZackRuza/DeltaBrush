@@ -1,4 +1,4 @@
-use crate::{Point3, RenderInstance, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{Ray3, WorldHitResponse}, model::ModelVariant};
+use crate::{Point3, RenderInstance, Transform, Transformable, algorithms::moller_trumbore_intersection_exterior_algebra, geometry::{Ray3, WorldHitResponse}, model::{ModelVariant, ModelEntry}};
 use crate::render_instance::MeshId;
 use uuid::Uuid;
 use std::collections::HashMap;
@@ -79,15 +79,15 @@ impl SceneGraphNode {
     }
 
     /// Sync all render meshes in the subtree
-    pub fn sync_render_mesh(&mut self, meshes: &mut HashMap<MeshId, ModelVariant>) {
+    pub fn sync_render_mesh(&mut self, meshes: &mut HashMap<MeshId, ModelEntry>) {
         for edge in &mut self.edges {
             match &mut edge.child {
                 SceneGraphChild::Node(node) => {
                     node.sync_render_mesh(meshes);
                 }
                 SceneGraphChild::Model(mesh_id) => {
-                    if let Some(model) = meshes.get_mut(mesh_id) {
-                        model.sync_render_mesh();
+                    if let Some(entry) = meshes.get_mut(mesh_id) {
+                        entry.model.sync_render_mesh();
                     }
                 }
             }
@@ -100,7 +100,7 @@ impl SceneGraphNode {
         &self, 
         parent_transform: &Transform, 
         object_id: &mut usize, 
-        meshes: &HashMap<MeshId, ModelVariant>,
+        meshes: &HashMap<MeshId, ModelEntry>,
         current_path: &[EdgeId],
         selected_path: Option<&Vec<EdgeId>>
     ) -> Vec<RenderInstance> {
@@ -150,7 +150,7 @@ impl SceneGraphNode {
         ray: Ray3, 
         parent_transform: &Transform, 
         object_id: &mut usize, 
-        meshes: &HashMap<MeshId, ModelVariant>,
+        meshes: &HashMap<MeshId, ModelEntry>,
         current_path: &mut Vec<EdgeId>
     ) -> Option<WorldHitResponse> {
         // Compose this node's transform with the parent's
@@ -177,8 +177,8 @@ impl SceneGraphNode {
                 }
                 SceneGraphChild::Model(mesh_id) => {
                     // Check ray intersection with this model
-                    if let Some(model) = meshes.get(mesh_id) {
-                        if let Some(mut hit) = Self::raycast_model(ray, model, &world_transform, *object_id) {
+                    if let Some(entry) = meshes.get(mesh_id) {
+                        if let Some(mut hit) = Self::raycast_model(ray, &entry.model, &world_transform, *object_id) {
                             let should_replace = match &closest {
                                 None => true,
                                 Some(existing) => hit.distance < existing.distance,

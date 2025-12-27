@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use crate::model::ModelVariant;
+use crate::model::{ModelVariant, ModelEntry};
 use crate::{HalfEdgeMesh, Mesh, ModelWrapper, Transform};
 use crate::scene_graph::{SceneGraphNode, SceneGraphChild, EdgeId};
 use crate::RenderInstance;
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 pub struct Scene {
     root: SceneGraphNode,
     dirty: bool,
-    meshes: HashMap<MeshId, ModelVariant>,
+    meshes: HashMap<MeshId, ModelEntry>,
     cached_render_instances: Vec<RenderInstance>,
     hierarchy_dirty: bool,
     selected_path: Option<Vec<EdgeId>>,  // Path of edge IDs
@@ -58,9 +58,10 @@ impl Scene {
     }
 
     /// Add mesh to scene storage, returns mesh_id
-    fn add_mesh(&mut self, model: ModelVariant) -> MeshId {
+    fn add_mesh(&mut self, model: ModelVariant, name: String) -> MeshId {
         let mesh_id = MeshId::new();
-        self.meshes.insert(mesh_id, model);
+        let entry = ModelEntry { model, name };
+        self.meshes.insert(mesh_id, entry);
         mesh_id
     }
 
@@ -90,88 +91,44 @@ impl Scene {
         }
     }
 
-    pub fn add_cube(&mut self, size: f32, position: [f32; 3]) -> usize {
+    pub fn add_cube(&mut self, size: f32) -> MeshId {
         let half_edge_mesh = HalfEdgeMesh::create_cube(size);
         let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
-        let mesh_id = self.add_mesh(model);
-        
-        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
-            position,
-            [0.0, 0.0, 0.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ));
-        node.add_child(SceneGraphChild::Model(mesh_id));
-
-        let parent = self.insertion_parent_mut();
-        let child_count = parent.edges.len();
-        parent.add_child(SceneGraphChild::Node(Box::new(node)));
-        self.hierarchy_dirty = true;
-        
-        // Return the index of the newly added child
-        child_count
+        self.add_mesh(model, "cube".to_string())
     }
 
-    pub fn add_sphere(&mut self, radius: f32, position: [f32; 3]) -> usize {
+    pub fn add_sphere(&mut self, radius: f32) -> MeshId {
         // Create a UV sphere mesh, then convert to half-edge for editing/rendering.
         // Keep tessellation modest for interactive performance.
         let sphere_mesh = Mesh::create_sphere(radius, 24, 16);
         let half_edge_mesh = HalfEdgeMesh::from_mesh(&sphere_mesh);
         let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
-        let mesh_id = self.add_mesh(model);
-
-        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
-            position,
-            [0.0, 0.0, 0.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ));
-        node.add_child(SceneGraphChild::Model(mesh_id));
-
-        let parent = self.insertion_parent_mut();
-        let child_count = parent.edges.len();
-        parent.add_child(SceneGraphChild::Node(Box::new(node)));
-        self.hierarchy_dirty = true;
-
-        // Return the index of the newly added child
-        child_count
+        self.add_mesh(model, "sphere".to_string())
     }
 
-    pub fn add_raw_mesh(&mut self, mesh: Mesh, position: [f32; 3]) -> usize {
+    pub fn add_raw_mesh(&mut self, mesh: Mesh) -> MeshId {
         let model = ModelVariant::Mesh(mesh);
-        let mesh_id = self.add_mesh(model);
-
-        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
-            position,
-            [0.0, 0.0, 0.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ));
-        node.add_child(SceneGraphChild::Model(mesh_id));
-
-        let parent = self.insertion_parent_mut();
-        let child_count = parent.edges.len();
-        parent.add_child(SceneGraphChild::Node(Box::new(node)));
-        self.hierarchy_dirty = true;
-
-        child_count
+        self.add_mesh(model, String::new())
     }
 
-    pub fn add_plane(&mut self, size: f32, position: [f32; 3]) -> usize {
+    pub fn add_raw_mesh_named(&mut self, mesh: Mesh, name: String) -> MeshId {
+        let model = ModelVariant::Mesh(mesh);
+        self.add_mesh(model, name)
+    }
+
+    pub fn add_plane(&mut self, size: f32) -> MeshId {
         let half_edge_mesh = HalfEdgeMesh::create_plane(size);
         let model = ModelVariant::HalfEdgeMesh(ModelWrapper::new(half_edge_mesh));
-        let mesh_id = self.add_mesh(model);
-        
-        let mut node = SceneGraphNode::with_transform(Transform::from_position_rotation_scale(
-            position,
-            [0.0, 0.0, 0.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ));
-        node.add_child(SceneGraphChild::Model(mesh_id));
-        
-        let child_count = self.root.edges.len();
-        self.root.add_child(SceneGraphChild::Node(Box::new(node)));
-        self.hierarchy_dirty = true;
-        
-        // Return the index of the newly added child
-        child_count
+        self.add_mesh(model, "plane".to_string())
+    }
+
+    fn name_from_obj(filename: &str) -> String {
+        let lower = filename.to_ascii_lowercase();
+        if let Some(stripped) = lower.strip_suffix(".obj") {
+            stripped.to_string()
+        } else {
+            filename.to_string()
+        }
     }
 
     pub fn remove_object(&mut self, id: usize) -> bool {
@@ -225,7 +182,14 @@ impl Scene {
 
     /// Get mesh data by ID for JavaScript
     pub fn get_mesh(&self, mesh_id: MeshId) -> Option<&crate::Mesh> {
-        self.meshes.get(&mesh_id).map(|m| m.get_mesh())
+        self.meshes.get(&mesh_id).map(|entry| entry.model.get_mesh())
+    }
+
+    /// Get list of all models (id + name) for UI display
+    pub fn get_model_list(&self) -> Vec<(MeshId, String)> {
+        self.meshes.iter()
+            .map(|(id, entry)| (*id, entry.name.clone()))
+            .collect()
     }
     
     /// Select an item by edge ID path
@@ -329,44 +293,32 @@ impl SceneAPI {
     }
 
     /// Add a cube to the scene
-    pub fn add_cube(&mut self, size: f32, position: Vec<f32>) -> usize {
-        let pos_array = [position[0], position[1], position[2]];
-
-        let id = self.core.add_cube(size, pos_array);
-        console_log!("Adding cube with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
-        id
+    pub fn add_cube(&mut self, size: f32) -> String {
+        let mesh_id = self.core.add_cube(size);
+        console_log!("Created cube with mesh_id {}", mesh_id.0);
+        mesh_id.0.to_string()
     }
 
     /// Add a sphere to the scene
-    pub fn add_sphere(&mut self, radius: f32, position: Vec<f32>) -> usize {
-        let pos_array = [position[0], position[1], position[2]];
-
-        let id = self.core.add_sphere(radius, pos_array);
-        console_log!("Adding sphere with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
-        id
+    pub fn add_sphere(&mut self, radius: f32) -> String {
+        let mesh_id = self.core.add_sphere(radius);
+        console_log!("Created sphere with mesh_id {}", mesh_id.0);
+        mesh_id.0.to_string()
     }
 
     /// Add a plane to the scene
-    pub fn add_plane(&mut self, size: f32, position: Vec<f32>) -> usize {
-        let pos_array = [position[0], position[1], position[2]];
-
-        let id = self.core.add_plane(size, pos_array);
-        console_log!("Adding plane with id {} at position [{}, {}, {}]", id, position[0], position[1], position[2]);
-        id
+    pub fn add_plane(&mut self, size: f32) -> String {
+        let mesh_id = self.core.add_plane(size);
+        console_log!("Created plane with mesh_id {}", mesh_id.0);
+        mesh_id.0.to_string()
     }
 
-    pub fn import_obj(&mut self, obj_text: String, position: Vec<f32>) -> Result<usize, JsValue> {
-        let pos_array = [position[0], position[1], position[2]];
+    pub fn import_obj(&mut self, filename: String, obj_text: String) -> Result<String, JsValue> {
         let mesh = parse_obj_to_mesh(&obj_text).map_err(|e| JsValue::from_str(&e))?;
-        let id = self.core.add_raw_mesh(mesh, pos_array);
-        console_log!(
-            "Imported OBJ with id {} at position [{}, {}, {}]",
-            id,
-            position[0],
-            position[1],
-            position[2]
-        );
-        Ok(id)
+        let name = Scene::name_from_obj(&filename);
+        let mesh_id = self.core.add_raw_mesh_named(mesh, name);
+        console_log!("Imported OBJ '{}' with mesh_id {}", filename, mesh_id.0);
+        Ok(mesh_id.0.to_string())
     }
 
     pub fn remove_object(&mut self, id: usize) -> bool {
@@ -476,5 +428,14 @@ impl SceneAPI {
         } else {
             JsValue::NULL
         }
+    }
+
+    /// Get list of all models with their IDs and names
+    pub fn get_model_list(&self) -> JsValue {
+        let models: Vec<(String, String)> = self.core.get_model_list()
+            .into_iter()
+            .map(|(id, name)| (id.0.to_string(), name))
+            .collect();
+        serde_wasm_bindgen::to_value(&models).unwrap()
     }
 }

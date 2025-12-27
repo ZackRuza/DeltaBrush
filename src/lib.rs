@@ -27,7 +27,7 @@ pub use transformable::Transformable;
 pub use material::Material;
 pub use geometry::Point3;
 pub use model_wrapper::ModelWrapper;
-pub use model::ToMesh;
+pub use model::{ToMesh, ModelEntry};
 
 #[wasm_bindgen]
 extern "C" {

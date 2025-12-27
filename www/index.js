@@ -189,12 +189,8 @@ class DeltaBrush {
 
             try {
                 const objText = await file.text();
-                const position = [
-                    (Math.random() - 0.5) * 4,
-                    (Math.random() - 0.5) * 4,
-                    (Math.random() - 0.5) * 4
-                ];
-                this.rustScene.import_obj(objText, position);
+                this.rustScene.import_obj(file.name, objText);
+                this.updateModelList();
             } catch (e) {
                 console.error('OBJ import failed', e);
             } finally {
@@ -262,13 +258,9 @@ class DeltaBrush {
             return;
         }
 
-        // Create cube in Rust scene
-        const position = [
-            (Math.random() - 0.5) * 4,
-            (Math.random() - 0.5) * 4,
-            (Math.random() - 0.5) * 4
-        ];
-        this.rustScene.add_cube(2.0, position);
+        // Add cube to models list
+        this.rustScene.add_cube(2.0);
+        this.updateModelList();
     }
 
     createSphere() {
@@ -277,13 +269,9 @@ class DeltaBrush {
             return;
         }
 
-        // Create sphere in Rust scene
-        const position = [
-            (Math.random() - 0.5) * 4,
-            (Math.random() - 0.5) * 4,
-            (Math.random() - 0.5) * 4
-        ];
-        this.rustScene.add_sphere(1.0, position);
+        // Add sphere to models list
+        this.rustScene.add_sphere(1.0);
+        this.updateModelList();
     }
 
     createPlane() {
@@ -299,6 +287,7 @@ class DeltaBrush {
             (Math.random() - 0.5) * 4
         ];
         this.rustScene.add_plane(3.0, position);
+        this.updateModelList();
     }
 
     clearScene() {
@@ -516,6 +505,21 @@ class DeltaBrush {
         document.getElementById('object-count').textContent = this.rustScene.object_count();
         document.getElementById('vertex-count').textContent = totalVertices;
         document.getElementById('triangle-count').textContent = totalTriangles;
+    }
+
+    updateModelList() {
+        const modelList = document.getElementById('model-list');
+        if (!modelList) return;
+
+        const models = this.rustScene.get_model_list();
+        
+        modelList.innerHTML = '';
+        for (const [meshId, name] of models) {
+            const li = document.createElement('li');
+            li.textContent = name || '(unnamed)';
+            li.dataset.meshId = meshId;
+            modelList.appendChild(li);
+        }
     }
 
     onMouseDown(event) {
