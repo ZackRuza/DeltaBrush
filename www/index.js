@@ -52,6 +52,18 @@ class DeltaBrush {
         this.animate();
     }
 
+    resetCamera() {
+        if (!this.camera || !this.controls) return;
+
+        this.camera.position.set(5, 5, 5);
+
+        this.controls.target.set(0, 0, 0);
+
+        this.controls.saveState();
+
+        this.controls.update();
+    }
+
     setupScene() {
         const canvas = document.getElementById('canvas');
         
