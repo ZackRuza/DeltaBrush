@@ -265,47 +265,48 @@ class DeltaBrush {
     }
 
     setupModelsPanel() {
-        const models = ["Cube", "Sphere", "Imported Model"];
-        const modelsList = document.getElementById("models-list");
-
-        if (!modelsList) return;
-
-        models.forEach(modelName => {
-            const modelItem = document.createElement("div");
-            modelItem.classList.add("model-item");
-
-            const modelImage = document.createElement("div");
-            modelImage.classList.add("model-image");
-
-            const nameSpan = document.createElement("span");
-            nameSpan.classList.add("model-name");
-            nameSpan.textContent = modelName;
-
-            const actions = document.createElement("div");
-            actions.classList.add("model-actions");
-
-            const settingsBtn = document.createElement("button");
-            settingsBtn.textContent = "⚙️";
-            settingsBtn.classList.add("model-action-btn");
-
-            const deleteBtn = document.createElement("button");
-            deleteBtn.textContent = "❌";
-            deleteBtn.classList.add("model-action-btn");
-            deleteBtn.addEventListener("click", () => {
-                modelItem.remove();
-            });
-
-            actions.appendChild(settingsBtn);
-            actions.appendChild(deleteBtn);
-
-            modelItem.appendChild(modelImage);
-            modelItem.appendChild(nameSpan);
-            modelItem.appendChild(actions);
-
-            modelsList.appendChild(modelItem);
-        });
+        this.modelsListContainer = document.getElementById("models-list");
     }
 
+
+    addModelToPanel(name, meshId) {
+        if (!this.modelsListContainer) return;
+
+        const modelItem = document.createElement("div");
+        modelItem.classList.add("model-item");
+        modelItem.dataset.meshId = meshId;
+
+        const modelImage = document.createElement("div");
+        modelImage.classList.add("model-image");
+
+        const nameSpan = document.createElement("span");
+        nameSpan.classList.add("model-name");
+        nameSpan.textContent = name || "(unnamed)";
+
+        const actions = document.createElement("div");
+        actions.classList.add("model-actions");
+
+        const settingsBtn = document.createElement("button");
+        settingsBtn.textContent = "⚙️";
+        settingsBtn.classList.add("model-action-btn");
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "❌";
+        deleteBtn.classList.add("model-action-btn");
+        deleteBtn.addEventListener("click", () => {
+            modelItem.remove();
+            this.updateModelList();
+        });
+
+        actions.appendChild(settingsBtn);
+        actions.appendChild(deleteBtn);
+
+        modelItem.appendChild(modelImage);
+        modelItem.appendChild(nameSpan);
+        modelItem.appendChild(actions);
+
+        this.modelsListContainer.appendChild(modelItem);
+    }
 
     onKeyDown(event) {
         // Ctrl+Space: move selection up the hierarchy
@@ -577,19 +578,16 @@ class DeltaBrush {
     }
 
     updateModelList() {
-        const modelList = document.getElementById('model-list');
-        if (!modelList) return;
+        const models = this.rustScene.get_model_list(); 
+        if (!models) return;
 
-        const models = this.rustScene.get_model_list();
-        
-        modelList.innerHTML = '';
+        if (this.modelsListContainer) this.modelsListContainer.innerHTML = '';
+
         for (const [meshId, name] of models) {
-            const li = document.createElement('li');
-            li.textContent = name || '(unnamed)';
-            li.dataset.meshId = meshId;
-            modelList.appendChild(li);
+            this.addModelToPanel(name, meshId);
         }
     }
+
 
     onMouseDown(event) {
         // Store the initial mouse position
