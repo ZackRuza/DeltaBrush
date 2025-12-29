@@ -1,0 +1,18 @@
+# Gizmo Materials
+
+# ========== Axis Colors ==========
+
+# X-axis - Red
+newmtl axis_x
+Kd 1.0 0.0 0.0
+Ke 0.3 0.0 0.0
+
+# Y-axis - Green
+newmtl axis_y
+Kd 0.0 1.0 0.0
+Ke 0.0 0.3 0.0
+
+# Z-axis - Blue
+newmtl axis_z
+Kd 0.0 0.0 1.0
+Ke 0.0 0.0 0.3
