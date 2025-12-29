@@ -190,6 +190,10 @@ class DeltaBrush {
             document.getElementById('file-upload').click(); // triggers file picker
         });
 
+        document.getElementById('reset-camera-btn').addEventListener('click', () => {
+            this.resetCamera();
+        });
+
         const fileUpload = document.getElementById('file-upload');
         fileUpload.addEventListener('change', async (event) => {
             const file = event.target.files && event.target.files[0];
@@ -273,7 +277,17 @@ class DeltaBrush {
             isResizing = false;
         });
 
+        const viewMenu = document.getElementById("view-menu");
+        const viewDropdown = document.getElementById("view-dropdown");
 
+        viewMenu.addEventListener("click", (e) => {
+            e.stopPropagation();
+            viewDropdown.classList.toggle("show");
+        });
+
+        window.addEventListener("click", () => {
+            viewDropdown.classList.remove("show");
+        });
     }
 
     setupModelsPanel() {
