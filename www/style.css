@@ -279,3 +279,36 @@ aside.right-panel {
 .model-actions button:active {
     background-color: #252526;
 }
+
+.view-menu {
+    position: relative;
+}
+
+.view-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #2b2b2b;
+    border: 1px solid #3e3e42;
+    min-width: 160px;
+    display: none;       
+    z-index: 2000;
+    border-radius: 5px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.view-dropdown.show {
+    display: block;
+}
+
+.dropdown-item {
+    padding: 8px 12px;
+    color: #ffffff;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.dropdown-item:hover {
+    background-color: #ffffff20;  
+    border-radius: 5px;
+}
