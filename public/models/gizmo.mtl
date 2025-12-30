@@ -16,3 +16,20 @@ Ke 0.0 0.3 0.0
 newmtl axis_z
 Kd 0.0 0.0 1.0
 Ke 0.0 0.0 0.3
+
+# ========== Rotation Plane Colors ==========
+
+# XY-plane - Yellow
+newmtl plane_xy
+Kd 1.0 1.0 0.0
+Ke 0.3 0.3 0.0
+
+# YZ-plane - Cyan
+newmtl plane_yz
+Kd 0.0 1.0 1.0
+Ke 0.0 0.3 0.3
+
+# ZX-plane - Magenta
+newmtl plane_zx
+Kd 1.0 0.0 1.0
+Ke 0.3 0.0 0.3

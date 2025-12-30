@@ -43,6 +43,15 @@ class DeltaBrush {
         this.draggingTranslationAxis = null; // Currently dragging axis
         this.translationDragDistance = null;
         this.translationDragStartPosition = null; // Starting position of the gnomon
+        
+        // Rotation gnomon interaction
+        this.rotationGnomonGroup = null;
+        this.rotationGnomonMeshes = []; // Array of rotation gnomon plane meshes
+        this.hoveredRotationPlane = null; // Currently hovered plane ('xy_plane', 'yz_plane', 'zx_plane')
+        this.draggingRotationPlane = null; // Currently dragging plane
+        this.rotationDragStartMouse = null; // Starting mouse position for rotation drag
+        this.rotationDragStartQuaternion = null; // Starting quaternion of the gnomon
+        this.rotationDragStartPosition = null; // Need starting position to determine mouse drag angle
     }
 
     async init() {
@@ -58,6 +67,7 @@ class DeltaBrush {
         this.setupScene();
         this.setupLights();
         await this.setupTranslationGnomon();
+        await this.setupRotationGnomon();
         this.setupEventListeners();
         this.setupModelsPanel();
         this.animate();
@@ -235,6 +245,46 @@ class DeltaBrush {
             console.log('Translation gnomon loaded with', this.translationGnomonMeshes.length, 'axis meshes');
         } catch (error) {
             console.error('Failed to load translation gnomon:', error);
+        }
+    }
+
+    async setupRotationGnomon() {
+        try {
+            console.log('Loading rotation gnomon...');
+            
+            // Load shared gizmo materials
+            const mtlLoader = new MTLLoader();
+            const materials = await mtlLoader.loadAsync('/models/gizmo.mtl');
+            materials.preload();
+            
+            // Load OBJ with materials
+            const objLoader = new OBJLoader();
+            objLoader.setMaterials(materials);
+            const gnomon = await objLoader.loadAsync('/models/rotation_gnomon.obj');
+            
+            // Store reference to rotation gnomon group
+            this.rotationGnomonGroup = gnomon;
+            this.rotationGnomonGroup.name = 'rotation_gnomon';
+            
+            // Store references to each rotation PLANE mesh for raycasting (not the axis cylinders)
+            this.rotationGnomonMeshes = [];
+            gnomon.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    // Only include plane meshes, not axis cylinders
+                    if (child.name.includes('_plane')) {
+                        child.userData.isRotationPlane = true;
+                        child.userData.planeName = child.name; // 'xy_plane', 'yz_plane', 'zx_plane'
+                        this.rotationGnomonMeshes.push(child);
+                    }
+                }
+            });
+            
+            // Add the gnomon to the scene
+            this.scene.add(gnomon);
+            
+            console.log('Rotation gnomon loaded with', this.rotationGnomonMeshes.length, 'rotation planes');
+        } catch (error) {
+            console.error('Failed to load rotation gnomon:', error);
         }
     }
 
@@ -639,6 +689,17 @@ class DeltaBrush {
         );
     }
 
+    // Convert world position to screen pixels
+    worldToScreen(worldPos) {
+        const canvas = this.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+        const ndc = worldPos.clone().project(this.camera);
+        return new THREE.Vector2(
+            (ndc.x + 1) / 2 * rect.width,
+            (1 - ndc.y) / 2 * rect.height
+        );
+    }
+
     updateInfo() {
         let totalVertices = 0;
         let totalTriangles = 0;
@@ -688,6 +749,22 @@ class DeltaBrush {
             // Set grabbing cursor
             this.renderer.domElement.style.cursor = 'grabbing';
         }
+        
+        // Check if clicking on rotation gnomon axis
+        if (this.hoveredRotationPlane) {
+            this.draggingRotationPlane = this.hoveredRotationPlane;
+            this.rotationDragStartMouse = { x: event.clientX, y: event.clientY };
+            this.rotationDragStartQuaternion = this.rotationGnomonGroup.quaternion.clone();
+            this.rotationDragStartPosition = this.rotationGnomonGroup.position.clone();
+            
+            // Disable orbit controls while dragging gnomon
+            if (this.controls) {
+                this.controls.enabled = false;
+            }
+            
+            // Set grabbing cursor
+            this.renderer.domElement.style.cursor = 'grabbing';
+        }
     }
 
     onMouseMove(event) {
@@ -698,6 +775,13 @@ class DeltaBrush {
         if (this.draggingTranslationAxis && this.translationDragStart) {
             this.isDragging = true;
             this.handleTranslationDrag(event);
+            return;
+        }
+        
+        // If dragging rotation gnomon axis, handle the drag
+        if (this.draggingRotationPlane && this.rotationDragStartMouse) {
+            this.isDragging = true;
+            this.handleRotationDrag(event);
             return;
         }
         
@@ -735,8 +819,29 @@ class DeltaBrush {
             } else {
                 if (this.hoveredTranslationAxis) {
                     this.hoveredTranslationAxis = null;
-                    canvas.style.cursor = 'default';
                 }
+            }
+            
+            // Check intersection with rotation gnomon meshes
+            const rotationIntersects = raycaster.intersectObjects(this.rotationGnomonMeshes, false);
+            
+            if (rotationIntersects.length > 0) {
+                const hitMesh = rotationIntersects[0].object;
+                const planeName = hitMesh.userData.planeName;
+                
+                if (this.hoveredRotationPlane !== planeName) {
+                    this.hoveredRotationPlane = planeName;
+                    canvas.style.cursor = 'pointer';
+                }
+            } else {
+                if (this.hoveredRotationPlane) {
+                    this.hoveredRotationPlane = null;
+                }
+            }
+            
+            // Set cursor based on any hover state
+            if (!this.hoveredTranslationAxis && !this.hoveredRotationPlane) {
+                canvas.style.cursor = 'default';
             }
         }
     }
@@ -756,6 +861,21 @@ class DeltaBrush {
             
             // Reset cursor
             this.renderer.domElement.style.cursor = this.hoveredTranslationAxis ? 'pointer' : 'default';
+        }
+        
+        // End rotation gnomon drag if active
+        if (this.draggingRotationPlane) {
+            this.draggingRotationPlane = null;
+            this.rotationDragStartMouse = null;
+            this.rotationDragStartQuaternion = null;
+            
+            // Re-enable orbit controls
+            if (this.controls) {
+                this.controls.enabled = true;
+            }
+            
+            // Reset cursor
+            this.renderer.domElement.style.cursor = (this.hoveredTranslationAxis || this.hoveredRotationPlane) ? 'pointer' : 'default';
         }
         
         // Only process as a click if we didn't drag
@@ -789,15 +909,6 @@ class DeltaBrush {
         const canvas = this.renderer.domElement;
         const rect = canvas.getBoundingClientRect();
         
-        // Convert world position to screen pixels
-        const worldToScreen = (worldPos) => {
-            const ndc = worldPos.clone().project(this.camera);
-            return new THREE.Vector2(
-                (ndc.x + 1) / 2 * rect.width,
-                (1 - ndc.y) / 2 * rect.height
-            );
-        };
-        
         // Get local axis direction based on which axis is being dragged
         const localAxisDir = new THREE.Vector3();
         switch (this.draggingTranslationAxis) {
@@ -811,8 +922,8 @@ class DeltaBrush {
         const worldAxisDir = localAxisDir.applyQuaternion(this.translationGnomonGroup.quaternion);
 
         // Calculate axis direction in screen space
-        const originScreen = worldToScreen(this.translationDragStartPosition);
-        const axisTipScreen = worldToScreen(this.translationDragStartPosition.clone().add(worldAxisDir));
+        const originScreen = this.worldToScreen(this.translationDragStartPosition);
+        const axisTipScreen = this.worldToScreen(this.translationDragStartPosition.clone().add(worldAxisDir));
         const axisScreenDir = axisTipScreen.sub(originScreen);
 
         // Skip if axis is nearly perpendicular to screen
@@ -838,6 +949,103 @@ class DeltaBrush {
         this.translationGnomonGroup.position.copy(
             this.translationDragStartPosition.clone().add(worldAxisDir.multiplyScalar(deltaWorld))
         );
+    }
+
+    handleRotationDrag(event) {
+        if (!this.draggingRotationPlane || !this.rotationDragStartMouse || !this.rotationGnomonGroup) return;
+        
+        // Determine the rotation axis based on the plane being dragged
+        let rotationAxis = new THREE.Vector3();
+        let localForwardAxisDir = new THREE.Vector3();
+        let localUpAxisDir = new THREE.Vector3();
+        switch (this.draggingRotationPlane) {
+            case 'xy_plane':
+                rotationAxis.set(0, 0, 1);
+                localForwardAxisDir.set(1, 0, 0); // x
+                localUpAxisDir.set(0, 1, 0); // y
+                break; // Z axis
+            case 'yz_plane':
+                rotationAxis.set(1, 0, 0);
+                localForwardAxisDir.set(0, 1, 0); // y
+                localUpAxisDir.set(0, 0, 1); // z
+                break; // X axis
+            case 'zx_plane':
+                rotationAxis.set(0, 1, 0);
+                localForwardAxisDir.set(0, 0, 1); // z
+                localUpAxisDir.set(1, 0, 0); // x
+                break; // Y axis
+            default: return;
+        }
+
+
+
+        const worldForwardAxisDir = localForwardAxisDir.applyQuaternion(this.rotationGnomonGroup.quaternion);
+        const worldUpAxisDir = localUpAxisDir.applyQuaternion(this.rotationGnomonGroup.quaternion);
+
+        const originScreen = this.worldToScreen(this.rotationDragStartPosition);
+        const forwardAxisTipScreen = this.worldToScreen(this.rotationDragStartPosition.clone().add(worldForwardAxisDir));
+        const upAxisTipScreen = this.worldToScreen(this.rotationDragStartPosition.clone().add(worldUpAxisDir));
+
+        // Get the screen-space axis vectors (relative to origin)
+        const v1 = new THREE.Vector2(
+            forwardAxisTipScreen.x - originScreen.x,
+            forwardAxisTipScreen.y - originScreen.y
+        );
+        const v2 = new THREE.Vector2(
+            upAxisTipScreen.x - originScreen.x,
+            upAxisTipScreen.y - originScreen.y
+        );
+
+        // Create 2x2 matrix M = [v1 v2] and compute its inverse
+        // M = | v1.x  v2.x |
+        //     | v1.y  v2.y |
+        // det(M) = v1.x * v2.y - v2.x * v1.y
+        const det = v1.x * v2.y - v2.x * v1.y;
+        
+        // Skip if matrix is singular (axes are parallel in screen space)
+        if (Math.abs(det) < 0.0001) return;
+
+        // M^{-1} = (1/det) * |  v2.y  -v2.x |
+        //                    | -v1.y   v1.x |
+        const invDet = 1.0 / det;
+
+        // Get canvas rect for mouse position calculation
+        const canvas = this.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+
+        // Calculate starting mouse position relative to origin in local coordinates
+        const startMouseFromOrigin = new THREE.Vector2(
+            this.rotationDragStartMouse.x - rect.left - originScreen.x,
+            this.rotationDragStartMouse.y - rect.top - originScreen.y
+        );
+        const startLocal = new THREE.Vector2(
+            invDet * (v2.y * startMouseFromOrigin.x - v2.x * startMouseFromOrigin.y),
+            invDet * (-v1.y * startMouseFromOrigin.x + v1.x * startMouseFromOrigin.y)
+        );
+
+        // Calculate current mouse position relative to origin in local coordinates
+        const currentMouseFromOrigin = new THREE.Vector2(
+            event.clientX - rect.left - originScreen.x,
+            event.clientY - rect.top - originScreen.y
+        );
+        const currentLocal = new THREE.Vector2(
+            invDet * (v2.y * currentMouseFromOrigin.x - v2.x * currentMouseFromOrigin.y),
+            invDet * (-v1.y * currentMouseFromOrigin.x + v1.x * currentMouseFromOrigin.y)
+        );
+
+        // Calculate angles in the local 2D plane
+        const startAngle = Math.atan2(startLocal.y, startLocal.x);
+        const currentAngle = Math.atan2(currentLocal.y, currentLocal.x);
+        const deltaAngle = currentAngle - startAngle;
+
+        // Convert local rotation axis to world space
+        const worldRotationAxis = rotationAxis.clone().applyQuaternion(this.rotationDragStartQuaternion);
+
+        // Create rotation quaternion around the world axis
+        const deltaQuat = new THREE.Quaternion().setFromAxisAngle(worldRotationAxis, deltaAngle);
+
+        // Apply rotation: new = delta * start
+        this.rotationGnomonGroup.quaternion.copy(deltaQuat.multiply(this.rotationDragStartQuaternion));
     }
 
     handleClick(ndcX, ndcY) {
