@@ -75,6 +75,28 @@ class DeltaBrush {
         this.controls.update();
     }
 
+    handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!this.wasmInitialized || !this.rustScene) {
+            console.error('Scene not ready');
+            event.target.value = '';
+            return;
+        }
+
+        file.text().then(text => {
+            const meshId = this.rustScene.import_obj(file.name, text);
+            this.addModelToPanel(file.name, meshId);
+        }).finally(() => {
+            event.target.value = '';
+        });
+    }
+    
+    openFilePicker() {
+        document.getElementById('file-upload').click();
+    }
+
     setupScene() {
         const canvas = document.getElementById('canvas');
         
@@ -234,35 +256,14 @@ class DeltaBrush {
             subOptions.classList.toggle("show");
         });
 
-        document.getElementById('subbtn-3').addEventListener('click', () => {
-            document.getElementById('file-upload').click(); // triggers file picker
-        });
-
         document.getElementById('reset-camera-btn').addEventListener('click', () => {
             this.resetCamera();
         });
 
-        const fileUpload = document.getElementById('file-upload');
-        fileUpload.addEventListener('change', async (event) => {
-            const file = event.target.files && event.target.files[0];
-            if (!file) return;
-            if (!this.wasmInitialized || !this.rustScene) {
-                console.error('WASM not initialized');
-                fileUpload.value = '';
-                return;
-            }
+        document.getElementById('file-upload').addEventListener('change', (e) => this.handleFileUpload(e));
 
-            try {
-                const objText = await file.text();
-                this.rustScene.import_obj(file.name, objText);
-                this.updateModelList();
-            } catch (e) {
-                console.error('OBJ import failed', e);
-            } finally {
-                // Allow selecting the same file again later.
-                fileUpload.value = '';
-            }
-        });
+        document.getElementById('subbtn-3').addEventListener('click', () => this.openFilePicker());
+
 
         // Mouse click detection
         const canvas = this.renderer.domElement;
@@ -283,6 +284,7 @@ class DeltaBrush {
         window.addEventListener('keydown', (event) => {
             this.onKeyDown(event);
         });
+
 
         const tabs = document.querySelectorAll('.tab');
         const panels = document.querySelectorAll('.tab-content');
