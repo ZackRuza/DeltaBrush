@@ -25,21 +25,28 @@
         <header>
             <h1>𝚫</h1>
 
-            <nav class="menu-bar">
+            <nav class="menu-bar">            
                 <ul>
-                    <li>File</li>
-                    <li>Edit</li>
-                    <li id="view-menu" class="view-menu">
-                        View
-                        <div id="view-dropdown" class="view-dropdown">
-                            <div id="reset-camera-btn" class="dropdown-item">
-                                Reset Camera
-                            </div>
+                    <li class="main-menu">    
+                        File
+                        <div class="dropdown">     
+                            <div id="upload-mesh-btn" class="dropdown-item">Upload Mesh</div>
                         </div>
                     </li>
-                    <li>Help</li>
+
+                    <li class="main-menu">Edit</li>
+
+                    <li class="main-menu">
+                        View
+                        <div class="dropdown">
+                            <div id="reset-camera-btn" class="dropdown-item">Reset Camera</div>
+                        </div>
+                    </li>
+
+                    <li class="main-menu">Help</li>
                 </ul>
             </nav>
+
 
         </header>
         <main>
@@ -65,8 +72,10 @@
             </div>
 
             <div class="tab-content" id="models">
-                <div id="models-list">
-                </div>
+                <button id="models-upload-btn" class="models-upload-btn">
+                    + Upload Mesh
+                </button>
+                <div id="models-list"></div>
             </div>
 
             <div class="tab-content" id="hierarchy">
