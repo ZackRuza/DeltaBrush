@@ -8,6 +8,7 @@ import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import init, { SceneAPI as RustScene } from '../pkg/deltabrush.js';
+import { ThreeMFLoader } from 'three/examples/jsm/Addons.js';
 
 class DeltaBrush {
     constructor() {
@@ -52,6 +53,18 @@ class DeltaBrush {
         this.rotationDragStartMouse = null; // Starting mouse position for rotation drag
         this.rotationDragStartQuaternion = null; // Starting quaternion of the gnomon
         this.rotationDragStartPosition = null; // Need starting position to determine mouse drag angle
+        
+        // Scale gnomon interaction
+        this.scaleGnomonGroup = null;
+        this.scaleGnomonAxes = null; // The axes group
+        this.scaleGnomonAxisObjects = { x: null, y: null, z: null }; // Individual axis references
+        this.scaleGnomonScale = new THREE.Vector3(1, 1, 1); // Logical scale for meshes
+        this.scaleGnomonTips = []; // Array of tip objects { mesh, axis: 'x'|'y'|'z' }
+        this.scaleGnomonMeshes = []; // Array of scale gnomon axis meshes (for raycasting)
+        this.hoveredScaleAxis = null; // Currently hovered axis ('x_axis', 'y_axis', 'z_axis')
+        this.draggingScaleAxis = null; // Currently dragging axis
+        this.scaleDragDistance = null; // Starting scale of the gnomon
+        this.scaleDragStartPosition = null; // Starting position of the gnomon
     }
 
     async init() {
@@ -66,8 +79,9 @@ class DeltaBrush {
         // Setup Three.js scene
         this.setupScene();
         this.setupLights();
-        await this.setupTranslationGnomon();
-        await this.setupRotationGnomon();
+        //await this.setupTranslationGnomon();
+        //await this.setupRotationGnomon();
+        await this.setupScaleGnomon();
         this.setupEventListeners();
         this.setupModelsPanel();
         this.animate();
@@ -211,9 +225,10 @@ class DeltaBrush {
         this.scene.add(rimLight);
     }
 
-    async setupTranslationGnomon() {
+    // Helper method to load a gnomon with shared logic
+    async loadGnomon(filename, gnomonType, meshFilter = null) {
         try {
-            console.log('Loading translation gnomon...');
+            console.log(`Loading ${gnomonType} gnomon...`);
             
             // Load shared gizmo materials
             const mtlLoader = new MTLLoader();
@@ -223,68 +238,165 @@ class DeltaBrush {
             // Load OBJ with materials
             const objLoader = new OBJLoader();
             objLoader.setMaterials(materials);
-            const gnomon = await objLoader.loadAsync('/models/translation_gnomon.obj');
+            const gnomon = await objLoader.loadAsync(`/models/${filename}`);
+            gnomon.name = `${gnomonType}_gnomon`;
             
-            // Store reference to translation gnomon group
-            this.translationGnomonGroup = gnomon;
-            this.translationGnomonGroup.name = 'translation_gnomon';
-            
-            // Store references to each axis mesh for raycasting
-            this.translationGnomonMeshes = [];
+            // Collect meshes based on filter
+            const meshes = [];
             gnomon.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
-                    child.userData.isTranslationAxis = true;
-                    child.userData.axisName = child.name; // 'x_axis', 'y_axis', 'z_axis'
-                    this.translationGnomonMeshes.push(child);
-                }
-            });
-            
-            // Add the gnomon to the scene
-            this.scene.add(gnomon);
-            
-            console.log('Translation gnomon loaded with', this.translationGnomonMeshes.length, 'axis meshes');
-        } catch (error) {
-            console.error('Failed to load translation gnomon:', error);
-        }
-    }
-
-    async setupRotationGnomon() {
-        try {
-            console.log('Loading rotation gnomon...');
-            
-            // Load shared gizmo materials
-            const mtlLoader = new MTLLoader();
-            const materials = await mtlLoader.loadAsync('/models/gizmo.mtl');
-            materials.preload();
-            
-            // Load OBJ with materials
-            const objLoader = new OBJLoader();
-            objLoader.setMaterials(materials);
-            const gnomon = await objLoader.loadAsync('/models/rotation_gnomon.obj');
-            
-            // Store reference to rotation gnomon group
-            this.rotationGnomonGroup = gnomon;
-            this.rotationGnomonGroup.name = 'rotation_gnomon';
-            
-            // Store references to each rotation PLANE mesh for raycasting (not the axis cylinders)
-            this.rotationGnomonMeshes = [];
-            gnomon.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    // Only include plane meshes, not axis cylinders
-                    if (child.name.includes('_plane')) {
-                        child.userData.isRotationPlane = true;
-                        child.userData.planeName = child.name; // 'xy_plane', 'yz_plane', 'zx_plane'
-                        this.rotationGnomonMeshes.push(child);
+                    if (!meshFilter || meshFilter(child)) {
+                        meshes.push(child);
                     }
                 }
             });
             
-            // Add the gnomon to the scene
+            // Add to scene
             this.scene.add(gnomon);
             
-            console.log('Rotation gnomon loaded with', this.rotationGnomonMeshes.length, 'rotation planes');
+            console.log(`${gnomonType} gnomon loaded with`, meshes.length, 'meshes');
+            return { group: gnomon, meshes };
         } catch (error) {
-            console.error('Failed to load rotation gnomon:', error);
+            console.error(`Failed to load ${gnomonType} gnomon:`, error);
+            return null;
+        }
+    }
+
+    async setupTranslationGnomon() {
+        const result = await this.loadGnomon('translation_gnomon.obj', 'translation', (child) => {
+            child.userData.isTranslationAxis = true;
+            child.userData.axisName = child.name;
+            return true;
+        });
+        if (result) {
+            this.translationGnomonGroup = result.group;
+            this.translationGnomonMeshes = result.meshes;
+        }
+    }
+
+    async setupRotationGnomon() {
+        const result = await this.loadGnomon('rotation_gnomon.obj', 'rotation', (child) => {
+            // Only include plane meshes, not axis cylinders
+            if (child.name.includes('_plane')) {
+                child.userData.isRotationPlane = true;
+                child.userData.planeName = child.name;
+                return true;
+            }
+            return false;
+        });
+        if (result) {
+            this.rotationGnomonGroup = result.group;
+            this.rotationGnomonMeshes = result.meshes;
+        }
+    }
+
+    async setupScaleGnomon() {
+        try {
+            console.log('Loading scale gnomon...');
+            
+            // Load shared gizmo materials
+            const mtlLoader = new MTLLoader();
+            const materials = await mtlLoader.loadAsync('/models/gizmo.mtl');
+            materials.preload();
+            
+            // Create main group for the scale gnomon
+            this.scaleGnomonGroup = new THREE.Group();
+            this.scaleGnomonGroup.name = 'scale_gnomon';
+            
+            // Build axes from a single axis mesh (gnomon_axis.obj) rotated into x/y/z
+            const objLoader = new OBJLoader();
+            objLoader.setMaterials(materials);
+            const baseAxis = await objLoader.loadAsync('/models/gnomon_axis.obj'); // z-axis model
+
+            // Group to hold the three axes
+            const axesGroup = new THREE.Group();
+            axesGroup.name = 'scale_gnomon_axes';
+
+            const axisConfigs = [
+                { axis: 'x', material: 'axis_x', rotation: [0, Math.PI / 2, 0] },   // rotate z→x (positive Y)
+                { axis: 'y', material: 'axis_y', rotation: [-Math.PI / 2, 0, 0] },  // rotate z→y
+                { axis: 'z', material: 'axis_z', rotation: [0, 0, 0] }              // keep z
+            ];
+
+            // Collect axis meshes for raycasting
+            this.scaleGnomonMeshes = [];
+
+            for (const config of axisConfigs) {
+                const axisClone = baseAxis.clone(true);
+                axisClone.name = `${config.axis}_axis_object`;
+
+                // Apply rotation to align the axis
+                axisClone.rotation.set(...config.rotation);
+
+                // Apply material and tagging
+                axisClone.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        const mat = materials.materials[config.material];
+                        if (mat) {
+                            child.material = mat.clone();
+                        }
+                        child.userData.isScaleAxis = true;
+                        child.userData.axisName = `${config.axis}_axis`;
+                        this.scaleGnomonMeshes.push(child);
+                    }
+                });
+
+                // Store reference to this axis object
+                this.scaleGnomonAxisObjects[config.axis] = axisClone;
+                axesGroup.add(axisClone);
+            }
+
+            this.scaleGnomonAxes = axesGroup;
+            this.scaleGnomonGroup.add(axesGroup);
+            
+            // Load tips for each axis
+            const tipLoader = new OBJLoader();
+            const tipGeometry = await tipLoader.loadAsync('/models/scale_gnomon_tip.obj');
+            
+            // Create tips for X, Y, Z axes
+            const tipConfigs = [
+                { axis: 'x', material: 'axis_x', rotation: [0, 0, -Math.PI / 2] },
+                { axis: 'y', material: 'axis_y', rotation: [0, 0, 0] },
+                { axis: 'z', material: 'axis_z', rotation: [Math.PI / 2, 0, 0] }
+            ];
+            
+            this.scaleGnomonTips = [];
+            for (const config of tipConfigs) {
+                const tip = tipGeometry.clone();
+                
+                // Apply material to tip
+                tip.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        const mat = materials.materials[config.material];
+                        if (mat) {
+                            child.material = mat.clone();
+                        }
+                        child.userData.isScaleAxis = true;
+                        child.userData.axisName = `${config.axis}_axis`;
+                    }
+                });
+                
+                // Rotate tip to point along the correct axis
+                tip.rotation.set(...config.rotation);
+                
+                // Store tip reference
+                this.scaleGnomonTips.push({ mesh: tip, axis: config.axis });
+                this.scaleGnomonGroup.add(tip);
+                
+                // Add tip meshes to raycasting array
+                tip.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        this.scaleGnomonMeshes.push(child);
+                    }
+                });
+            }
+            
+            // Add to scene
+            this.scene.add(this.scaleGnomonGroup);
+            
+            console.log('Scale gnomon loaded with', this.scaleGnomonMeshes.length, 'meshes');
+        } catch (error) {
+            console.error('Failed to load scale gnomon:', error);
         }
     }
 
@@ -726,6 +838,43 @@ class DeltaBrush {
     }
 
 
+    // Helper to update gnomon hover state
+    updateGnomonHover(raycaster, canvas, meshes, hoverProperty, userDataKey) {
+        const intersects = raycaster.intersectObjects(meshes, false);
+        
+        if (intersects.length > 0) {
+            const hitMesh = intersects[0].object;
+            const name = hitMesh.userData[userDataKey];
+            
+            if (this[hoverProperty] !== name) {
+                this[hoverProperty] = name;
+                canvas.style.cursor = 'pointer';
+            }
+        } else {
+            if (this[hoverProperty]) {
+                this[hoverProperty] = null;
+            }
+        }
+    }
+
+    // Helper to start gnomon drag
+    startGnomonDrag(event) {
+        if (this.controls) {
+            this.controls.enabled = false;
+        }
+        this.renderer.domElement.style.cursor = 'grabbing';
+    }
+
+    // Helper to end gnomon drag
+    endGnomonDrag() {
+        if (this.controls) {
+            this.controls.enabled = true;
+        }
+        // Reset cursor based on current hover state
+        const isHovering = this.hoveredTranslationAxis || this.hoveredRotationPlane || this.hoveredScaleAxis;
+        this.renderer.domElement.style.cursor = isHovering ? 'pointer' : 'default';
+    }
+
     onMouseDown(event) {
         // Store the initial mouse position
         this.mouseDownPos = {
@@ -740,14 +889,7 @@ class DeltaBrush {
             this.translationDragStart = { x: event.clientX, y: event.clientY };
             this.translationDragStartPosition = this.translationGnomonGroup.position.clone();
             this.translationDragDistance = null; // Will be set on first drag frame
-            
-            // Disable orbit controls while dragging gnomon
-            if (this.controls) {
-                this.controls.enabled = false;
-            }
-            
-            // Set grabbing cursor
-            this.renderer.domElement.style.cursor = 'grabbing';
+            this.startGnomonDrag(event);
         }
         
         // Check if clicking on rotation gnomon axis
@@ -756,14 +898,16 @@ class DeltaBrush {
             this.rotationDragStartMouse = { x: event.clientX, y: event.clientY };
             this.rotationDragStartQuaternion = this.rotationGnomonGroup.quaternion.clone();
             this.rotationDragStartPosition = this.rotationGnomonGroup.position.clone();
-            
-            // Disable orbit controls while dragging gnomon
-            if (this.controls) {
-                this.controls.enabled = false;
-            }
-            
-            // Set grabbing cursor
-            this.renderer.domElement.style.cursor = 'grabbing';
+            this.startGnomonDrag(event);
+        }
+        
+        // Check if clicking on scale gnomon axis
+        if (this.hoveredScaleAxis) {
+            this.draggingScaleAxis = this.hoveredScaleAxis;
+            this.scaleDragStartMouse = { x: event.clientX, y: event.clientY };
+            this.scaleDragStartScale = this.scaleGnomonScale.clone();
+            this.scaleDragStartPosition = this.scaleGnomonGroup.position.clone();
+            this.startGnomonDrag(event);
         }
     }
 
@@ -785,6 +929,13 @@ class DeltaBrush {
             return;
         }
         
+        // If dragging scale gnomon axis, handle the drag
+        if (this.draggingScaleAxis && this.scaleDragStartMouse) {
+            this.isDragging = true;
+            this.handleScaleDrag(event);
+            return;
+        }
+        
         // If mouse has moved significantly, consider it a drag
         if (this.mouseDownPos) {
             const dx = event.clientX - this.mouseDownPos.x;
@@ -797,7 +948,7 @@ class DeltaBrush {
             }
         }
         
-        // Check for translation gnomon hover (only when not dragging)
+        // Check for gnomon hover (only when not dragging)
         if (!this.isDragging) {
             const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -805,42 +956,13 @@ class DeltaBrush {
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
             
-            // Check intersection with translation gnomon meshes
-            const intersects = raycaster.intersectObjects(this.translationGnomonMeshes, false);
-            
-            if (intersects.length > 0) {
-                const hitMesh = intersects[0].object;
-                const axisName = hitMesh.userData.axisName;
-                
-                if (this.hoveredTranslationAxis !== axisName) {
-                    this.hoveredTranslationAxis = axisName;
-                    canvas.style.cursor = 'pointer';
-                }
-            } else {
-                if (this.hoveredTranslationAxis) {
-                    this.hoveredTranslationAxis = null;
-                }
-            }
-            
-            // Check intersection with rotation gnomon meshes
-            const rotationIntersects = raycaster.intersectObjects(this.rotationGnomonMeshes, false);
-            
-            if (rotationIntersects.length > 0) {
-                const hitMesh = rotationIntersects[0].object;
-                const planeName = hitMesh.userData.planeName;
-                
-                if (this.hoveredRotationPlane !== planeName) {
-                    this.hoveredRotationPlane = planeName;
-                    canvas.style.cursor = 'pointer';
-                }
-            } else {
-                if (this.hoveredRotationPlane) {
-                    this.hoveredRotationPlane = null;
-                }
-            }
+            // Check all gnomon types
+            this.updateGnomonHover(raycaster, canvas, this.translationGnomonMeshes, 'hoveredTranslationAxis', 'axisName');
+            this.updateGnomonHover(raycaster, canvas, this.rotationGnomonMeshes, 'hoveredRotationPlane', 'planeName');
+            this.updateGnomonHover(raycaster, canvas, this.scaleGnomonMeshes, 'hoveredScaleAxis', 'axisName');
             
             // Set cursor based on any hover state
-            if (!this.hoveredTranslationAxis && !this.hoveredRotationPlane) {
+            if (!this.hoveredTranslationAxis && !this.hoveredRotationPlane && !this.hoveredScaleAxis) {
                 canvas.style.cursor = 'default';
             }
         }
@@ -853,14 +975,7 @@ class DeltaBrush {
             this.translationDragStart = null;
             this.translationDragStartPosition = null;
             this.translationDragDistance = null;
-            
-            // Re-enable orbit controls
-            if (this.controls) {
-                this.controls.enabled = true;
-            }
-            
-            // Reset cursor
-            this.renderer.domElement.style.cursor = this.hoveredTranslationAxis ? 'pointer' : 'default';
+            this.endGnomonDrag();
         }
         
         // End rotation gnomon drag if active
@@ -868,14 +983,16 @@ class DeltaBrush {
             this.draggingRotationPlane = null;
             this.rotationDragStartMouse = null;
             this.rotationDragStartQuaternion = null;
-            
-            // Re-enable orbit controls
-            if (this.controls) {
-                this.controls.enabled = true;
-            }
-            
-            // Reset cursor
-            this.renderer.domElement.style.cursor = (this.hoveredTranslationAxis || this.hoveredRotationPlane) ? 'pointer' : 'default';
+            this.endGnomonDrag();
+        }
+        
+        // End scale gnomon drag if active
+        if (this.draggingScaleAxis) {
+            this.draggingScaleAxis = null;
+            this.scaleDragStartMouse = null;
+            this.scaleDragStartScale = null;
+            this.scaleDragStartPosition = null;
+            this.endGnomonDrag();
         }
         
         // Only process as a click if we didn't drag
@@ -910,7 +1027,7 @@ class DeltaBrush {
         const rect = canvas.getBoundingClientRect();
         
         // Get local axis direction based on which axis is being dragged
-        const localAxisDir = new THREE.Vector3();
+        let localAxisDir = new THREE.Vector3();
         switch (this.draggingTranslationAxis) {
             case 'x_axis': localAxisDir.set(1, 0, 0); break;
             case 'y_axis': localAxisDir.set(0, 1, 0); break;
@@ -1046,6 +1163,98 @@ class DeltaBrush {
 
         // Apply rotation: new = delta * start
         this.rotationGnomonGroup.quaternion.copy(deltaQuat.multiply(this.rotationDragStartQuaternion));
+    }
+
+    // Update scale gnomon tip positions based on current scale
+    updateScaleGnomonTips() {
+        if (!this.scaleGnomonAxes || !this.scaleGnomonTips.length) return;
+        
+        const scale = this.scaleGnomonScale;
+        
+        for (const tipData of this.scaleGnomonTips) {
+            const { mesh, axis } = tipData;
+            
+            // Position tip at the end of each scaled axis
+            switch (axis) {
+                case 'x':
+                    mesh.position.set(1.0 * scale.x, 0, 0);
+                    break;
+                case 'y':
+                    mesh.position.set(0, 1.0 * scale.y, 0);
+                    break;
+                case 'z':
+                    mesh.position.set(0, 0, 1.0 * scale.z);
+                    break;
+            }
+        }
+    }
+
+    handleScaleDrag(event) {
+        if (!this.draggingScaleAxis || !this.scaleDragStartMouse || !this.scaleGnomonGroup) return;
+
+        const canvas = this.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+
+        // Determine which axis is being scaled
+        let localAxisDir = new THREE.Vector3();
+        switch (this.draggingScaleAxis) {
+            case 'x_axis': localAxisDir.set(1, 0, 0); break;
+            case 'y_axis': localAxisDir.set(0, 1, 0); break;
+            case 'z_axis': localAxisDir.set(0, 0, 1); break;
+            default: return;
+        }
+
+        // Convert local axis to world space using SCALE gnomon's quaternion
+        const worldAxisDir = localAxisDir.applyQuaternion(this.scaleGnomonGroup.quaternion);
+
+        // Calculate axis direction in screen space
+        const originScreen = this.worldToScreen(this.scaleDragStartPosition);
+        const axisTipScreen = this.worldToScreen(this.scaleDragStartPosition.clone().add(worldAxisDir));
+        const axisScreenDir = axisTipScreen.sub(originScreen);
+
+        // Skip if axis is nearly perpendicular to screen
+        const axisLengthSquared = axisScreenDir.lengthSq();
+        if (axisLengthSquared < 0.0001) return;
+
+        // Get mouse position relative to gnomon origin (in screen pixels)
+        const mouseFromOrigin = new THREE.Vector2(
+            event.clientX - rect.left - originScreen.x,
+            event.clientY - rect.top - originScreen.y
+        );
+
+        // Project mouse onto axis to get distance in world units
+        const projectionScalar = mouseFromOrigin.dot(axisScreenDir) / axisLengthSquared;
+        let newScale = this.scaleDragStartScale.clone();
+
+        switch (this.draggingScaleAxis) {
+            case 'x_axis': newScale.x = projectionScalar; break;
+            case 'y_axis': newScale.y = projectionScalar; break;
+            case 'z_axis': newScale.z = projectionScalar; break;
+            default: return;
+        }
+
+        // Store initial projection on first frame
+        if (this.scaleDragDistance === null) {
+            this.scaleDragDistance = projectionScalar;
+        }
+
+        // Update scale
+        this.scaleGnomonScale.copy(newScale);
+
+        // Apply visual scale to cylinders (only stretch along length, not diameter)
+        // Each cylinder is oriented along Z in its local space
+        if (this.scaleGnomonAxisObjects.x) {
+            this.scaleGnomonAxisObjects.x.scale.set(1, 1, newScale.x);
+        }
+        if (this.scaleGnomonAxisObjects.y) {
+            this.scaleGnomonAxisObjects.y.scale.set(1, 1, newScale.y);
+        }
+        if (this.scaleGnomonAxisObjects.z) {
+            this.scaleGnomonAxisObjects.z.scale.set(1, 1, newScale.z);
+        }
+        
+        // Update tip positions
+        this.updateScaleGnomonTips();
     }
 
     handleClick(ndcX, ndcY) {
