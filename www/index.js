@@ -426,6 +426,9 @@ class DeltaBrush {
 
         document.getElementById('subbtn-3').addEventListener('click', () => this.openFilePicker());
 
+        document.getElementById('upload-mesh-btn').addEventListener('click', () => this.openFilePicker());
+
+        document.getElementById('models-upload-btn').addEventListener('click', () => this.openFilePicker());
 
         // Mouse click detection
         const canvas = this.renderer.domElement;
@@ -489,17 +492,6 @@ class DeltaBrush {
             isResizing = false;
         });
 
-        const viewMenu = document.getElementById("view-menu");
-        const viewDropdown = document.getElementById("view-dropdown");
-
-        viewMenu.addEventListener("click", (e) => {
-            e.stopPropagation();
-            viewDropdown.classList.toggle("show");
-        });
-
-        window.addEventListener("click", () => {
-            viewDropdown.classList.remove("show");
-        });
     }
 
     setupModelsPanel() {
