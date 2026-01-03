@@ -65,6 +65,9 @@ class DeltaBrush {
         this.draggingScaleAxis = null; // Currently dragging axis
         this.scaleDragDistance = null; // Starting scale of the gnomon
         this.scaleDragStartPosition = null; // Starting position of the gnomon
+        
+        // Resize handling
+        this.resizeTimeout = null;
     }
 
     async init() {
@@ -84,6 +87,10 @@ class DeltaBrush {
         await this.setupScaleGnomon();
         this.setupEventListeners();
         this.setupModelsPanel();
+        
+        // Setup resize observer for reliable container resize detection
+        this.setupResizeObserver();
+        
         this.animate();
     }
 
@@ -123,6 +130,12 @@ class DeltaBrush {
 
     setupScene() {
         const canvas = document.getElementById('canvas');
+        // Use parent container dimensions for reliable sizing
+        const container = canvas.parentElement;
+        const width = container.clientWidth || window.innerWidth;
+        const height = container.clientHeight || window.innerHeight;
+        
+        console.log('Setting up scene with dimensions:', width, 'x', height);
         
         // Scene
         this.scene = new THREE.Scene();
@@ -131,7 +144,7 @@ class DeltaBrush {
         // Camera
         this.camera = new THREE.PerspectiveCamera(
             75,
-            canvas.clientWidth / canvas.clientHeight,
+            width / height,
             0.1,
             1000
         );
@@ -143,13 +156,14 @@ class DeltaBrush {
             antialias: true,
             powerPreference: "high-performance"
         });
-        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        // Pass false to prevent Three.js from setting CSS styles (which conflicts with our CSS)
+        this.renderer.setSize(width, height, false);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2x for performance
 
         // Post-processing setup with high-quality settings
         const renderTarget = new THREE.WebGLRenderTarget(
-            canvas.clientWidth * window.devicePixelRatio,
-            canvas.clientHeight * window.devicePixelRatio,
+            width * window.devicePixelRatio,
+            height * window.devicePixelRatio,
             {
                 minFilter: THREE.LinearFilter,
                 magFilter: THREE.LinearFilter,
@@ -168,7 +182,7 @@ class DeltaBrush {
         // Outline pass - adds outline effect to selected objects
         const pixelRatio = this.renderer.getPixelRatio();
         this.outlinePass = new OutlinePass(
-            new THREE.Vector2(canvas.clientWidth * pixelRatio, canvas.clientHeight * pixelRatio),
+            new THREE.Vector2(width * pixelRatio, height * pixelRatio),
             this.scene,
             this.camera
         );
@@ -183,8 +197,8 @@ class DeltaBrush {
         
         // FXAA pass - anti-aliasing for post-processing (with higher quality settings)
         const fxaaPass = new ShaderPass(FXAAShader);
-        fxaaPass.material.uniforms['resolution'].value.x = 1 / (canvas.clientWidth * pixelRatio);
-        fxaaPass.material.uniforms['resolution'].value.y = 1 / (canvas.clientHeight * pixelRatio);
+        fxaaPass.material.uniforms['resolution'].value.x = 1 / (width * pixelRatio);
+        fxaaPass.material.uniforms['resolution'].value.y = 1 / (height * pixelRatio);
         this.composer.addPass(fxaaPass);
 
         // Controls
@@ -199,9 +213,56 @@ class DeltaBrush {
         // Axes helper
         const axesHelper = new THREE.AxesHelper(5);
         this.scene.add(axesHelper);
+    }
 
-        // Handle window resize
-        window.addEventListener('resize', () => this.onWindowResize());
+    setupResizeObserver() {
+        const container = this.renderer.domElement.parentElement;
+        
+        this.resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                
+                if (width > 0 && height > 0) {
+                    // Immediately update camera to prevent distortion
+                    this.camera.aspect = width / height;
+                    this.camera.updateProjectionMatrix();
+                    
+                    // Debounce expensive buffer resize operations
+                    this.debouncedResize(width, height);
+                }
+            }
+        });
+        
+        this.resizeObserver.observe(container);
+    }
+    
+    debouncedResize(width, height) {
+        // Clear existing timeout
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+        
+        // Wait 100ms after last resize event before applying expensive operations
+        this.resizeTimeout = setTimeout(() => {
+            this.applyResize(width, height);
+        }, 100);
+    }
+    
+    applyResize(width, height) {
+        // Update renderer buffers (expensive operation, debounced)
+        this.renderer.setSize(width, height, false);
+        
+        // Update post-processing
+        this.composer.setSize(width, height);
+        
+        const pixelRatio = this.renderer.getPixelRatio();
+        this.outlinePass.setSize(width * pixelRatio, height * pixelRatio);
+        
+        // Update FXAA resolution
+        const fxaaPass = this.composer.passes[this.composer.passes.length - 1];
+        if (fxaaPass?.material?.uniforms['resolution']) {
+            fxaaPass.material.uniforms['resolution'].value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+        }
     }
 
     setupLights() {
@@ -1322,47 +1383,6 @@ class DeltaBrush {
             this.hitMarker.geometry.dispose();
             this.hitMarker.material.dispose();
             this.hitMarker = null;
-        }
-    }
-
-
-
-    onWindowResize() {
-        const canvas = document.getElementById('canvas');
-        const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
-        const pixelRatio = this.renderer.getPixelRatio();
-        
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
-        
-        // Update composer and render target size
-        this.composer.setSize(width, height);
-        
-        // Update the render target with high-quality settings
-        const renderTarget = new THREE.WebGLRenderTarget(
-            width * pixelRatio,
-            height * pixelRatio,
-            {
-                minFilter: THREE.LinearFilter,
-                magFilter: THREE.LinearFilter,
-                format: THREE.RGBAFormat,
-                stencilBuffer: false,
-                samples: 8 // Maintain MSAA quality
-            }
-        );
-        this.composer.renderTarget1 = renderTarget;
-        this.composer.renderTarget2 = renderTarget.clone();
-        
-        // Update outline pass resolution (use pixel ratio for higher quality)
-        this.outlinePass.resolution.set(width * pixelRatio, height * pixelRatio);
-        
-        // Update FXAA shader resolution
-        const fxaaPass = this.composer.passes[2]; // FXAA is the 3rd pass
-        if (fxaaPass && fxaaPass.material.uniforms['resolution']) {
-            fxaaPass.material.uniforms['resolution'].value.x = 1 / (width * pixelRatio);
-            fxaaPass.material.uniforms['resolution'].value.y = 1 / (height * pixelRatio);
         }
     }
 
