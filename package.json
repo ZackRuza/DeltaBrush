@@ -1,7 +1,7 @@
 {
   "name": "deltabrush",
   "version": "0.1.0",
-  "description": "3D modelling software with Rust core and Three.js frontend",
+  "description": "3D modeling software with Rust core and Three.js frontend",
   "type": "module",
   "scripts": {
     "build": "npm run build:wasm && npm run build:web",
