@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use crate::model::{ModelVariant, ModelEntry};
 use crate::{HalfEdgeMesh, Mesh, ModelWrapper, Transform};
-use crate::scene_graph::{SceneGraphNode, SceneGraphChild, EdgeId};
+use crate::scene_graph::{SceneGraphNode, SceneGraphChild, EdgeId, SceneGraphEdge};
 use crate::RenderInstance;
 use crate::render_instance::MeshId;
 use crate::{console_log, Vec3};
@@ -9,6 +9,20 @@ use crate::geometry::{Direction3, Point3, Ray3, WorldHitResponse};
 use crate::obj_import::parse_obj_to_mesh;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+
+// =================== SCENE GRAPH DATA STRUCTURES ===================
+
+/// Scene graph node data for JavaScript visualization
+#[derive(Serialize)]
+pub struct SceneGraphNodeData {
+    pub edge_id: String,
+    pub name: String,
+    pub transform: Transform,
+    pub children: Vec<SceneGraphNodeData>,
+    pub is_model: bool,
+    pub mesh_id: Option<String>,
+    pub is_selected: bool,
+}
 
 // =================== CORE SCENE IMPLEMENTATION ===================
 
@@ -254,6 +268,56 @@ impl Scene {
         }
         false
     }
+    
+    /// Get scene graph hierarchy for UI visualization
+    pub fn get_scene_graph(&self) -> Vec<SceneGraphNodeData> {
+        self.root.edges.iter().map(|edge| {
+            self.serialize_edge(edge, &[], self.selected_path.as_ref())
+        }).collect()
+    }
+    
+    fn serialize_edge(
+        &self,
+        edge: &SceneGraphEdge,
+        current_path: &[EdgeId],
+        selected_path: Option<&Vec<EdgeId>>
+    ) -> SceneGraphNodeData {
+        let mut path = current_path.to_vec();
+        path.push(edge.edge_id);
+        
+        let is_selected = selected_path.map_or(false, |sel| sel == &path);
+        
+        match &edge.child {
+            SceneGraphChild::Node(node) => {
+                SceneGraphNodeData {
+                    edge_id: edge.edge_id.to_string(),
+                    name: "Group".to_string(),
+                    transform: node.transform.clone(),
+                    children: node.edges.iter().map(|child_edge| {
+                        self.serialize_edge(child_edge, &path, selected_path)
+                    }).collect(),
+                    is_model: false,
+                    mesh_id: None,
+                    is_selected,
+                }
+            }
+            SceneGraphChild::Model(mesh_id) => {
+                let name = self.meshes.get(mesh_id)
+                    .map(|entry| entry.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                
+                SceneGraphNodeData {
+                    edge_id: edge.edge_id.to_string(),
+                    name,
+                    transform: Transform::identity(), // Models use parent transform
+                    children: vec![],
+                    is_model: true,
+                    mesh_id: Some(mesh_id.0.to_string()),
+                    is_selected,
+                }
+            }
+        }
+    }
 }
 
 // =================== JS INTERFACE LAYER ===================
@@ -437,5 +501,10 @@ impl SceneAPI {
             .map(|(id, name)| (id.0.to_string(), name))
             .collect();
         serde_wasm_bindgen::to_value(&models).unwrap()
+    }
+    
+    /// Get scene graph hierarchy for UI visualization
+    pub fn get_scene_graph(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.core.get_scene_graph()).unwrap()
     }
 }
