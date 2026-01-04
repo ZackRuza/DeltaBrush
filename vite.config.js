@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import path from 'path';
+import glsl from 'vite-plugin-glsl';
 
 export default defineConfig({
   root: 'www',
@@ -22,4 +23,5 @@ export default defineConfig({
       '@assets': path.resolve(__dirname, './assets'),
     },
   },
+  plugins: [glsl()],
 });

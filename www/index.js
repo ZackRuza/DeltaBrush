@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { DieQuadShader } from './shaders/DieQuadShader.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
@@ -66,6 +67,16 @@ class DeltaBrush {
         this.scaleDragDistance = null; // Starting scale of the gnomon
         this.scaleDragStartPosition = null; // Starting position of the gnomon
         
+        // Pointed die gizmo for transformation visualization
+        this.referencePointedDie = null; // Translucent die at origin
+        this.transformedPointedDie = null; // Opaque die after transformation
+        this.referencePointedDieRT = null; // Render target for reference die
+        this.transformedPointedDieRT = null; // Render target for transformed die
+        this.referencePointedDieScene = null; // Separate scene for reference die
+        this.transformedPointedDieScene = null; // Separate scene for transformed die
+        this.dieQuadScene = null; // Scene for screen-space quads
+        this.dieQuadCamera = null; // Orthographic camera for quads
+        
         // Resize handling
         this.resizeTimeout = null;
     }
@@ -85,6 +96,7 @@ class DeltaBrush {
         //await this.setupTranslationGnomon();
         //await this.setupRotationGnomon();
         await this.setupScaleGnomon();
+        await this.setupPointedDie();
         this.setupEventListeners();
         this.setupModelsPanel();
         
@@ -262,6 +274,14 @@ class DeltaBrush {
         const fxaaPass = this.composer.passes[this.composer.passes.length - 1];
         if (fxaaPass?.material?.uniforms['resolution']) {
             fxaaPass.material.uniforms['resolution'].value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+        }
+        
+        // Update pointed die render targets
+        if (this.referencePointedDieRT) {
+            this.referencePointedDieRT.setSize(width, height);
+        }
+        if (this.transformedPointedDieRT) {
+            this.transformedPointedDieRT.setSize(width, height);
         }
     }
 
@@ -458,6 +478,130 @@ class DeltaBrush {
             console.log('Scale gnomon loaded with', this.scaleGnomonMeshes.length, 'meshes');
         } catch (error) {
             console.error('Failed to load scale gnomon:', error);
+        }
+    }
+
+    async setupPointedDie() {
+        try {
+            console.log('Loading pointed die gizmo...');
+            
+            const objLoader = new OBJLoader();
+            const dieModel = await objLoader.loadAsync('/models/pointed_die.obj');
+            
+            // Get canvas dimensions for render targets
+            const canvas = this.renderer.domElement;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            
+            // Create render targets for each die (with alpha channel)
+            const createRT = () => new THREE.WebGLRenderTarget(width, height, {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                stencilBuffer: false
+            });
+            this.referencePointedDieRT = createRT();
+            this.transformedPointedDieRT = createRT();
+            
+            // Create separate scenes for each die (for isolated opaque rendering)
+            this.referencePointedDieScene = new THREE.Scene();
+            this.referencePointedDieScene.background = null; // Transparent background
+            this.transformedPointedDieScene = new THREE.Scene();
+            this.transformedPointedDieScene.background = null;
+            
+            // Add lights to each die scene
+            const addLightsToScene = (scene) => {
+                scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+                const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+                keyLight.position.set(5, 10, 5);
+                scene.add(keyLight);
+                const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                fillLight.position.set(-5, 5, -5);
+                scene.add(fillLight);
+            };
+            addLightsToScene(this.referencePointedDieScene);
+            addLightsToScene(this.transformedPointedDieScene);
+            
+            // Create reference pointed die (opaque in its own scene)
+            this.referencePointedDie = dieModel.clone(true);
+            this.referencePointedDie.name = 'reference_pointed_die';
+            this.referencePointedDie.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    // Base color is red, pegs and arrows are lighter red
+                    let color = 0xff0000; // Red for cube
+                    if (child.name === 'pegs' || child.name === 'arrows') {
+                        color = 0xffbbbb; // Light red for pegs and arrows
+                    }
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: color,
+                        metalness: 0.1,
+                        roughness: 0.5
+                    });
+                }
+            });
+            this.referencePointedDie.position.set(0, 0, 0);
+            this.referencePointedDieScene.add(this.referencePointedDie);
+            
+            // Create transformed pointed die (opaque in its own scene)
+            this.transformedPointedDie = dieModel.clone(true);
+            this.transformedPointedDie.name = 'transformed_pointed_die';
+            this.transformedPointedDie.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    // Base color is green, pegs and arrows are lighter green
+                    let color = 0x00ff00; // Green for cube
+                    if (child.name === 'pegs' || child.name === 'arrows') {
+                        color = 0xbbffbb; // Light green for pegs and arrows
+                    }
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: color,
+                        metalness: 0.1,
+                        roughness: 0.5
+                    });
+                }
+            });
+            this.transformedPointedDie.position.set(2, 1, 1);
+            this.transformedPointedDieScene.add(this.transformedPointedDie);
+            
+            // Create screen-space quad scene for compositing
+            this.dieQuadScene = new THREE.Scene();
+            this.dieQuadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            
+            // Create fullscreen quads to display the render targets
+            const quadGeometry = new THREE.PlaneGeometry(2, 2);
+            
+            // Reference die quad (rendered first, behind)
+            const referenceDieQuadMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tDiffuse: { value: this.referencePointedDieRT.texture },
+                    opacity: { value: 0.5 }
+                },
+                ...DieQuadShader,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false
+            });
+            this.referenceDieQuad = new THREE.Mesh(quadGeometry, referenceDieQuadMaterial);
+            this.referenceDieQuad.renderOrder = 1000;
+            this.dieQuadScene.add(this.referenceDieQuad);
+            
+            // Transformed die quad (rendered second, in front)
+            const transformedDieQuadMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tDiffuse: { value: this.transformedPointedDieRT.texture },
+                    opacity: { value: 0.5 }
+                },
+                ...DieQuadShader,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false
+            });
+            this.transformedDieQuad = new THREE.Mesh(quadGeometry.clone(), transformedDieQuadMaterial);
+            this.transformedDieQuad.renderOrder = 1001;
+            this.dieQuadScene.add(this.transformedDieQuad);
+            
+            console.log('Pointed die gizmo loaded with multi-pass rendering');
+        } catch (error) {
+            console.error('Failed to load pointed die:', error);
         }
     }
 
@@ -1393,7 +1537,34 @@ class DeltaBrush {
         this.syncScene();
         
         this.controls.update();
-        this.composer.render(); // Use composer instead of renderer
+        
+        // Multi-pass rendering for pointed dice
+        if (this.referencePointedDieScene && this.transformedPointedDieScene) {
+            // Render reference die to its render target (opaque)
+            this.renderer.setRenderTarget(this.referencePointedDieRT);
+            this.renderer.setClearColor(0x000000, 0); // Clear to transparent
+            this.renderer.clear();
+            this.renderer.render(this.referencePointedDieScene, this.camera);
+            
+            // Render transformed die to its render target (opaque)
+            this.renderer.setRenderTarget(this.transformedPointedDieRT);
+            this.renderer.setClearColor(0x000000, 0); // Clear to transparent
+            this.renderer.clear();
+            this.renderer.render(this.transformedPointedDieScene, this.camera);
+            
+            // Reset render target to screen
+            this.renderer.setRenderTarget(null);
+        }
+        
+        // Render main scene with composer (post-processing)
+        this.composer.render();
+        
+        // Composite the translucent dice on top
+        if (this.dieQuadScene && this.dieQuadCamera) {
+            this.renderer.autoClear = false;
+            this.renderer.render(this.dieQuadScene, this.dieQuadCamera);
+            this.renderer.autoClear = true;
+        }
     }
 }
 
